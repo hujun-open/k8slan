@@ -1,0 +1,15 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: k8slan
+    app.kubernetes.io/managed-by: kustomize
+  name: dset-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: dset-role
+subjects:
+- kind: ServiceAccount
+  name: ds
+  namespace: system

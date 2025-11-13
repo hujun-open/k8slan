@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: ds
+  namespace: system
+  labels:
+    control-plane: ds
+    app.kubernetes.io/name: k8slan
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  selector:
+    matchLabels:
+      control-plane: ds
+      app.kubernetes.io/name: k8slan
+  template:
+    metadata:
+      labels:
+        control-plane: ds
+        app.kubernetes.io/name: k8slan
+    spec:
+      hostNetwork: true
+      containers:
+      - command:
+        - /ds
+        image: controller:latest
+        name: manager
+        ports: []
+        securityContext:
+          runAsUser: 0
+          runAsGroup: 0    
+          capabilities:
+            add: ["NET_ADMIN"]
+        resources:
+          limits:
+            cpu: 500m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        volumeMounts: []
+      volumes: []
+      serviceAccountName: ds
+      terminationGracePeriodSeconds: 10

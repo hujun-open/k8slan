@@ -1,0 +1,9 @@
+apiVersion: lan.k8slan.io/v1beta1
+kind: LAN
+metadata:
+  labels:
+    app.kubernetes.io/name: k8slan
+    app.kubernetes.io/managed-by: kustomize
+  name: lan-sample
+spec:
+  # TODO(user): Add fields here
