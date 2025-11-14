@@ -50,16 +50,22 @@ func (r *LANReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
 	myFinalizerName := fmt.Sprintf("finalizer.k8slan.io/%v", r.hostName)
-	fieldOwner := fmt.Sprintf("fieldowner.k8slan.io/%v", r.hostName)
+	// fieldOwner := fmt.Sprintf("fieldowner.k8slan.io/%v", r.hostName)
 	if lan.ObjectMeta.DeletionTimestamp.IsZero() {
 		// The object is not being deleted, so if it does not have our finalizer,
 		// then let's add the finalizer and update the object. This is equivalent
 		// to registering our finalizer.
 		if !controllerutil.ContainsFinalizer(lan, myFinalizerName) {
-			patch := makeFinalizerPatch(*lan, myFinalizerName)
-			if err := r.Patch(ctx, lan, patch, &client.PatchOptions{FieldManager: fieldOwner}); err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to add finalizer,%w", err)
+			log.Info("add finalizer", "existing list", lan.Finalizers, "myname", myFinalizerName)
+			// patch := makeFinalizerPatch(*lan, myFinalizerName)
+			// if err := r.Patch(ctx, lan, patch, &client.PatchOptions{FieldManager: fieldOwner}); err != nil {
+			// 	return ctrl.Result{}, fmt.Errorf("failed to add finalizer,%w", err)
+			// }
+			controllerutil.AddFinalizer(lan, myFinalizerName)
+			if err := r.Update(ctx, lan); err != nil {
+				return ctrl.Result{}, err
 			}
+			return ctrl.Result{}, nil
 		}
 	} else {
 		// The object is being deleted
@@ -79,10 +85,11 @@ func (r *LANReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 	}
 	err := r.ensure(lan)
 	if err != nil {
-		return ctrl.Result{}, err
+		log.Error(err, "failed to ensure lan")
+		return ctrl.Result{}, nil
 	}
-	log.Info("lan created", "name", lan.Name)
-	return reconcile.Result{}, nil
+	log.Info("lan created")
+	return ctrl.Result{}, nil
 }
 
 func (r *LANReconciler) SetupWithManager(mgr ctrl.Manager) error {
