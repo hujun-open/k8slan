@@ -83,7 +83,8 @@ func (r *LANReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 			if err := r.Patch(ctx, lan, patch); err != nil {
 				return ctrl.Result{}, err
 			}
-			r.DPRemoveChan <- &lan.Spec
+			spec := lan.Spec
+			r.DPRemoveChan <- &spec
 		}
 
 		// Stop reconciliation as the item is being deleted
@@ -94,7 +95,8 @@ func (r *LANReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 	// 	log.Error(err, "failed to ensure lan")
 	// 	return ctrl.Result{}, nil
 	// }
-	r.DPAddChan <- &lan.Spec
+	spec := lan.Spec
+	r.DPAddChan <- &spec
 	log.Info("lan created")
 	return ctrl.Result{}, nil
 }

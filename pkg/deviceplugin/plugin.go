@@ -5,7 +5,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/hujun-open/k8slan/api/v1beta1"
 	"github.com/hujun-open/k8slan/pkg/interfaces"
 	"golang.org/x/net/context"
@@ -20,22 +19,20 @@ const (
 	// DefaultCapacity is the default when no capacity is provided
 	DefaultCapacity = 1
 	// DefaultMode is the default when no mode is provided
-	DefaultMode = "transparent"
+	DefaultMode = "passthru"
 )
 
 type macvtapDevicePlugin struct {
-	Name     string
-	hostName string
-	lan      *v1beta1.LANSpec
-	// NetNsPath is the path to the network namespace the plugin operates in.
-	NetNsPath   string
+	Name        string
+	hostName    string
+	lan         *v1beta1.LANSpec
 	Capacity    int
 	Mode        string
 	stopWatcher chan struct{}
 	pluginapi.UnimplementedDevicePluginServer
 }
 
-func NewMacvtapDevicePlugin(name string, lan *v1beta1.LANSpec, netNsPath string) *macvtapDevicePlugin {
+func NewMacvtapDevicePlugin(name string, lan *v1beta1.LANSpec) *macvtapDevicePlugin {
 	hname, err := os.Hostname()
 	if err != nil {
 		panic(err)
@@ -44,7 +41,7 @@ func NewMacvtapDevicePlugin(name string, lan *v1beta1.LANSpec, netNsPath string)
 		Name:        name,
 		Mode:        DefaultMode,
 		Capacity:    DefaultCapacity,
-		NetNsPath:   netNsPath,
+		lan:         lan,
 		stopWatcher: make(chan struct{}),
 		hostName:    hname,
 	}
@@ -97,12 +94,9 @@ func (mdp *macvtapDevicePlugin) Allocate(ctx context.Context, r *pluginapi.Alloc
 			// possibly existing existing interface before creating it to reset
 			// its state.
 			var index int
-			err := ns.WithNetNSPath(mdp.NetNsPath, func(_ ns.NetNS) error {
-				var err error
-				// index, err = util.RecreateMacvtap(name, mdp.LowerDevice, mdp.Mode)
-				index, err = interfaces.Ensure(macVtapName, mdp.Name, mdp.lan, mdp.hostName, mdp.Mode)
-				return err
-			})
+			var err error
+			// index, err = util.RecreateMacvtap(name, mdp.LowerDevice, mdp.Mode)
+			index, err = interfaces.Ensure(macVtapName, mdp.Name, mdp.lan, mdp.hostName, mdp.Mode)
 			if err != nil {
 				return nil, err
 			}

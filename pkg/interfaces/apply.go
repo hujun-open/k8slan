@@ -210,6 +210,8 @@ func ModeFromString(s string) (netlink.MacvlanMode, error) {
 		return netlink.MACVLAN_MODE_PRIVATE, nil
 	case "vepa":
 		return netlink.MACVLAN_MODE_VEPA, nil
+	case "passthru":
+		return netlink.MACVLAN_MODE_PASSTHRU, nil
 	default:
 		return 0, fmt.Errorf("unknown macvtap mode: %q", s)
 	}

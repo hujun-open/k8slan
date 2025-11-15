@@ -17,7 +17,6 @@ type macvtapLister struct {
 	DeviceList map[string]*v1beta1.LANSpec //key is the vlan name in the LAN
 	// lock   *sync.RWMutex
 	// NetNsPath is the path to the network namespace the lister operates in.
-	NetNsPath string
 	AddChan   chan *v1beta1.LANSpec
 	RemovChan chan *v1beta1.LANSpec
 }
@@ -32,7 +31,6 @@ func (ml *macvtapLister) getCurrentPlugins() dpm.PluginNameList {
 
 func NewMacvtapLister(netNsPath string, add, remove chan *v1beta1.LANSpec) *macvtapLister {
 	return &macvtapLister{
-		NetNsPath:  netNsPath,
 		AddChan:    add,
 		RemovChan:  remove,
 		DeviceList: make(map[string]*v1beta1.LANSpec),
@@ -78,7 +76,7 @@ func (ml *macvtapLister) NewPlugin(name string) dpm.PluginInterface {
 	}
 
 	log.Info("Creating device plugin", "name", name, "config", lan)
-	return NewMacvtapDevicePlugin(name, lan, ml.NetNsPath)
+	return NewMacvtapDevicePlugin(name, lan)
 }
 
 // GetMainThreadNetNsPath returns the path of the main thread's namespace
