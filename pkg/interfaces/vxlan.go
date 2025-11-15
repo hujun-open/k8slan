@@ -1,4 +1,4 @@
-package main
+package interfaces
 
 import (
 	"errors"
@@ -120,11 +120,11 @@ func ensureVXLANIf(name, egressifname string, vni int, grp netip.Addr, mtu uint3
 	return rif, nil
 }
 
-func CreateVXLANIF(lan *v1beta1.LAN, devName string, mtu, port int) (netlink.Link, error) {
-	grpAddr := netip.MustParseAddr(*lan.Spec.VxLANGrp)
+func CreateVXLANIF(lan *v1beta1.LANSpec, devName string, mtu, port int) (netlink.Link, error) {
+	grpAddr := netip.MustParseAddr(*lan.VxLANGrp)
 	//create vxlan
-	vxlink, err := ensureVXLANIf(*lan.Spec.VxLANName,
-		devName, int(*lan.Spec.VNI),
+	vxlink, err := ensureVXLANIf(*lan.VxLANName,
+		devName, int(*lan.VNI),
 		grpAddr, uint32(mtu), port)
 	if err != nil {
 		if !errors.Is(err, syscall.EEXIST) {

@@ -9,6 +9,9 @@ import (
 
 	"github.com/hujun-open/k8slan/api/v1beta1"
 	k8slan "github.com/hujun-open/k8slan/api/v1beta1"
+	"github.com/hujun-open/k8slan/pkg/deviceplugin"
+	"github.com/hujun-open/k8slan/pkg/interfaces"
+	"github.com/kubevirt/device-plugin-manager/pkg/dpm"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -24,7 +27,9 @@ import (
 
 type LANReconciler struct {
 	client.Client
-	hostName string
+	hostName     string
+	DPAddChan    chan *v1beta1.LANSpec
+	DPRemoveChan chan *v1beta1.LANSpec
 }
 
 // +kubebuilder:rbac:groups=lan.k8slan.io,resources=lans,verbs=get;list;watch;update
@@ -71,23 +76,25 @@ func (r *LANReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 		// The object is being deleted
 		if controllerutil.ContainsFinalizer(lan, myFinalizerName) {
 			// our finalizer is present, so let's handle any external dependency
-			r.remove(lan)
+			interfaces.Remove(lan)
 			// remove our finalizer from the list and update it.
 			patch := client.MergeFrom(lan.DeepCopy())
 			controllerutil.RemoveFinalizer(lan, myFinalizerName)
 			if err := r.Patch(ctx, lan, patch); err != nil {
 				return ctrl.Result{}, err
 			}
+			r.DPRemoveChan <- &lan.Spec
 		}
 
 		// Stop reconciliation as the item is being deleted
 		return ctrl.Result{}, nil
 	}
-	err := r.ensure(lan)
-	if err != nil {
-		log.Error(err, "failed to ensure lan")
-		return ctrl.Result{}, nil
-	}
+	// err := r.ensure(lan)
+	// if err != nil {
+	// 	log.Error(err, "failed to ensure lan")
+	// 	return ctrl.Result{}, nil
+	// }
+	r.DPAddChan <- &lan.Spec
 	log.Info("lan created")
 	return ctrl.Result{}, nil
 }
@@ -101,6 +108,9 @@ func (r *LANReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // ============================================================================
 // Main Function
 // ============================================================================
+const (
+	chanDepth = 16
+)
 
 func main() {
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
@@ -120,14 +130,22 @@ func main() {
 		fmt.Fprintf(os.Stderr, "unable to start manager: %v\n", err)
 		os.Exit(1)
 	}
-
-	if err = (&LANReconciler{
-		Client: mgr.GetClient(), hostName: hostName,
-	}).SetupWithManager(mgr); err != nil {
+	reconciler := &LANReconciler{
+		Client:       mgr.GetClient(),
+		hostName:     hostName,
+		DPAddChan:    make(chan *k8slan.LANSpec, chanDepth),
+		DPRemoveChan: make(chan *k8slan.LANSpec, chanDepth),
+	}
+	if err = reconciler.SetupWithManager(mgr); err != nil {
 		fmt.Fprintf(os.Stderr, "unable to create controller: %v\n", err)
 		os.Exit(1)
 	}
+	//create device plugin
+	mainNsPath := deviceplugin.GetMainThreadNetNsPath()
+	manager := dpm.NewManager(deviceplugin.NewMacvtapLister(mainNsPath, reconciler.DPAddChan, reconciler.DPRemoveChan))
+	go manager.Run()
 
+	//start controller
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		fmt.Fprintf(os.Stderr, "unable to start manager: %v\n", err)
 		os.Exit(1)
