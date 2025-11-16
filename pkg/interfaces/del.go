@@ -6,15 +6,23 @@ import (
 )
 
 func Remove(lan *v1beta1.LAN) {
+	//veth
+	for _, spoke := range lan.Spec.SpokeList {
+		vethLink, err := netlink.LinkByName(getPeerVethName(spoke))
+		if err == nil {
+			netlink.LinkDel(vethLink)
+		}
+	}
 	//vxlan
 	vxlink, err := netlink.LinkByName(*lan.Spec.VxLANName)
 	if err == nil {
 		netlink.LinkDel(vxlink)
 	}
+
 	//bridge
 	brlink, err := netlink.LinkByName(*lan.Spec.BridgeName)
 	if err == nil {
 		netlink.LinkDel(brlink)
 	}
-	//note: remove bridge will also remove all its vlan and macvtap interace on top of vlan interfaces
+
 }

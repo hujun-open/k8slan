@@ -47,7 +47,7 @@ spec:
                 type: string
               force:
                 type: boolean
-              vlanNames:
+              spokes:
                 items:
                   type: string
                 type: array
@@ -67,7 +67,7 @@ spec:
                 type: integer
             required:
             - bridge
-            - vlanNames
+            - spokes
             - vni
             - vxlan
             - vxlanGrp

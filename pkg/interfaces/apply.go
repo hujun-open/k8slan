@@ -9,7 +9,7 @@ import (
 )
 
 // ensure creates all objs to match lan's spec
-func Ensure(macName, vlanName string, lan *v1beta1.LANSpec, hostname, macvtapMode string) (int, error) {
+func Ensure(macName, spokeName string, lan *v1beta1.LANSpec, hostname, macvtapMode string) (int, error) {
 	var err error
 	//get underly link
 	vxDevName := *lan.DefaultVxDev
@@ -58,6 +58,7 @@ func Ensure(macName, vlanName string, lan *v1beta1.LANSpec, hostname, macvtapMod
 		la := netlink.NewLinkAttrs()
 		la.Name = *lan.BridgeName
 		la.MTU = mtu
+		la.TxQLen = -1 //this is important, otherwise the interface only accept broadcast traffic
 		br = &netlink.Bridge{
 			LinkAttrs: la,
 		}
@@ -140,42 +141,55 @@ func Ensure(macName, vlanName string, lan *v1beta1.LANSpec, hostname, macvtapMod
 	//set grp_fwd_mask
 	err = netlink.LinkSetBRSlaveGroupFwdMask(vxLink, BRSlaveGrpFwdMask)
 	if err != nil {
-		return -1, fmt.Errorf("failed to set brg slave grp fwd mask, %w", err)
+		return -1, fmt.Errorf("failed to set vxlan slave grp fwd mask, %w", err)
 	}
-	//creating vlan interfaces
+	//creating veth interfaces
 	//remove existing vlan interface with same name
-	vlanLink, err := netlink.LinkByName(vlanName)
+	vlanLink, err := netlink.LinkByName(spokeName)
 	if err == nil {
 		if !lan.Force {
-			return -1, fmt.Errorf("vlan interface %v already exists", vlanName)
+			return -1, fmt.Errorf("vlan interface %v already exists", spokeName)
 		} else {
 			netlink.LinkDel(vlanLink)
 		}
 	}
-	vlanID := -1
-	for i, name := range lan.VlanNameList {
-		if name == vlanName {
-			vlanID = i + 1
-			break
-		}
-	}
 	la := netlink.LinkAttrs{
 		ParentIndex: br.Attrs().Index,
-		MTU:         mtu - 4,
-		Name:        vlanName,
+		Name:        spokeName,
+		TxQLen:      -1,
 	}
-	vlink := &netlink.Vlan{
-		VlanId:    vlanID,
+	peerName := getPeerVethName(spokeName)
+	vlink := &netlink.Veth{
+		PeerName:  peerName,
 		LinkAttrs: la,
 	}
 	if err := netlink.LinkAdd(vlink); err != nil {
-		return -1, fmt.Errorf("failed to create vlan interface %v: %v", vlanName, err)
+		return -1, fmt.Errorf("failed to create veth interface %v: %v", spokeName, err)
 	}
 	if err := netlink.LinkSetUp(vlink); err != nil {
-		return -1, fmt.Errorf("failed to bring vlan %v up, %w", vlanName, err)
+		return -1, fmt.Errorf("failed to veth %v up, %w", spokeName, err)
+	}
+	peerLink, err := netlink.LinkByName(peerName)
+	if err != nil {
+		return -1, fmt.Errorf("failed to find peer veth %v, %w", peerName, err)
+	}
+	if err = netlink.LinkSetMaster(peerLink, br); err != nil {
+		return -1, fmt.Errorf("failed to set veth %v to master %v, %w", peerName, br.Attrs().Name, err)
+	}
+	//set grp_fwd_mask
+	err = netlink.LinkSetBRSlaveGroupFwdMask(peerLink, BRSlaveGrpFwdMask)
+	if err != nil {
+		return -1, fmt.Errorf("failed to set veth slave grp fwd mask, %w", err)
+	}
+	if err := netlink.LinkSetUp(peerLink); err != nil {
+		return -1, fmt.Errorf("failed to peer veth %v up, %w", peerName, err)
 	}
 	//create macvtap interface
-	return RecreateMacvtap(macName, vlanName, macvtapMode)
+	return RecreateMacvtap(macName, spokeName, macvtapMode)
+}
+
+func getPeerVethName(name string) string {
+	return name + "p"
 }
 
 func getDefaultRouteInterface() (netlink.Link, error) {

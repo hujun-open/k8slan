@@ -124,8 +124,8 @@ func (in *LANSpec) DeepCopyInto(out *LANSpec) {
 		*out = new(int32)
 		**out = **in
 	}
-	if in.VlanNameList != nil {
-		in, out := &in.VlanNameList, &out.VlanNameList
+	if in.SpokeList != nil {
+		in, out := &in.SpokeList, &out.SpokeList
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}

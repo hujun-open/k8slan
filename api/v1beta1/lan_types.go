@@ -55,7 +55,7 @@ type LANSpec struct {
 	VxPort *int32 `json:"vxlanPort,omitempty"`
 	Force  bool   `json:"force,omitempty"`
 	// +required
-	VlanNameList []string `json:"vlanNames,omitempty"`
+	SpokeList []string `json:"spokes,omitempty"`
 }
 
 const (
@@ -89,10 +89,10 @@ func (spec *LANSpec) Validate() error {
 	if !addr.IsMulticast() {
 		return fmt.Errorf("%v is not a multicast address", *spec.VxLANGrp)
 	}
-	if len(spec.VlanNameList) == 0 || len(spec.VlanNameList) > 4095 {
+	if len(spec.SpokeList) == 0 || len(spec.SpokeList) > 4095 {
 		return fmt.Errorf("the number of vlan names must be in range of 1..4095")
 	}
-	for _, ifname := range spec.VlanNameList {
+	for _, ifname := range spec.SpokeList {
 		if err := checkInterfaceName(ifname); err != nil {
 			return err
 		}
