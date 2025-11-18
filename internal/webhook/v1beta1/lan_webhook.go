@@ -39,8 +39,8 @@ func SetupLANWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).For(&lanv1beta1.LAN{}).
 		WithValidator(&LANCustomValidator{}).
 		WithDefaulter(&LANCustomDefaulter{
-			vxdev:  v1beta1.DefaultVxLANDevAuto,
 			vxport: v1beta1.DefaultVxPort,
+			vxgrp:  v1beta1.DefaultVxGrp,
 		}).
 		Complete()
 }
@@ -56,8 +56,8 @@ func SetupLANWebhookWithManager(mgr ctrl.Manager) error {
 // as it is used only for temporary operations and does not need to be deeply copied.
 type LANCustomDefaulter struct {
 	// TODO(user): Add more fields as needed for defaulting
-	vxdev  string
 	vxport int32
+	vxgrp  string
 }
 
 // SetDefaultGeneric return inval if it is not nil, otherwise return defVal
@@ -80,8 +80,8 @@ func (d *LANCustomDefaulter) Default(_ context.Context, obj runtime.Object) erro
 		return fmt.Errorf("expected an LAN object but got %T", obj)
 	}
 	lanlog.Info("Defaulting for LAN", "name", lan.GetName())
-	lan.Spec.DefaultVxDev = SetDefaultGeneric(lan.Spec.DefaultVxDev, d.vxdev)
 	lan.Spec.VxPort = SetDefaultGeneric(lan.Spec.VxPort, d.vxport)
+	lan.Spec.VxLANGrp = SetDefaultGeneric(lan.Spec.VxLANGrp, d.vxgrp)
 
 	return nil
 }

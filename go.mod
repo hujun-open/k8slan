@@ -3,11 +3,13 @@ module github.com/hujun-open/k8slan
 go 1.24.5
 
 require (
+	github.com/containernetworking/plugins v1.8.0
 	github.com/kubevirt/device-plugin-manager v1.19.5
 	github.com/onsi/ginkgo/v2 v2.25.1
 	github.com/onsi/gomega v1.38.1
 	github.com/vishvananda/netlink v1.3.1
 	golang.org/x/net v0.43.0
+	golang.org/x/sys v0.35.0
 	k8s.io/apimachinery v0.34.2
 	k8s.io/client-go v0.34.2
 	k8s.io/kubelet v0.34.2
@@ -79,7 +81,6 @@ require (
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
 	golang.org/x/oauth2 v0.27.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
-	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/term v0.34.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/time v0.9.0 // indirect

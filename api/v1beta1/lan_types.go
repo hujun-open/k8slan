@@ -19,6 +19,7 @@ package v1beta1
 import (
 	"fmt"
 	"net/netip"
+	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -27,8 +28,8 @@ import (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 const (
-	DefaultVxLANDevAuto = "auto"
-	DefaultVxPort       = 4789
+	DefaultVxPort = 4789
+	DefaultVxGrp  = "FF02:0:0:0:0:0:0:14"
 )
 
 // LANSpec defines the desired state of LAN
@@ -38,7 +39,8 @@ type LANSpec struct {
 	// The following markers will use OpenAPI v3 schema to validate the value
 	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
 
-	// foo is an example field of LAN. Edit lan_types.go to remove/update
+	// +required
+	NS *string `json:"ns,omitempty"`
 	// +required
 	BridgeName *string `json:"bridge,omitempty"`
 	// +required
@@ -48,7 +50,7 @@ type LANSpec struct {
 	// +required
 	VxLANGrp *string `json:"vxlanGrp,omitempty"`
 	// +optional
-	DefaultVxDev *string `json:"defaultVxlanDev,omitempty"`
+	DefaultVxDev string `json:"defaultVxlanDev,omitempty"`
 	// +optional
 	VxDevMap map[string]string `json:"vxlanDevMap,omitempty"`
 	// +optional
@@ -59,13 +61,13 @@ type LANSpec struct {
 }
 
 const (
-	maxLinuxIfNameLen = 15
+	maxLinuxIfNameLen = 13
 )
 
 func checkInterfaceName(ifname string) error {
 	nlen := len(ifname)
 	if nlen == 0 || nlen > maxLinuxIfNameLen {
-		return fmt.Errorf("invalid length of bridge name %v, must be 1..15", ifname)
+		return fmt.Errorf("invalid length of interface name %v, must be 1..%d", ifname, maxLinuxIfNameLen)
 	}
 	return nil
 }
@@ -77,6 +79,10 @@ func (spec *LANSpec) Validate() error {
 	}
 	if err := checkInterfaceName(*spec.VxLANName); err != nil {
 		return err
+	}
+
+	if strings.TrimSpace(*spec.NS) == "" {
+		return fmt.Errorf("ns is not specified")
 	}
 
 	if *spec.VNI <= 0 || *spec.VNI > 0xFFFFFF {

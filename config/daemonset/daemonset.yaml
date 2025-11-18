@@ -28,8 +28,7 @@ spec:
         securityContext:
           runAsUser: 0
           runAsGroup: 0    
-          capabilities:
-            add: ["NET_ADMIN"]
+          privileged: true 
         resources:
           limits:
             cpu: 500m
@@ -40,6 +39,9 @@ spec:
         volumeMounts:
         - mountPath: /var/lib/kubelet/device-plugins
           name: deviceplugin
+        - mountPath: /var/run/netns
+          name: ns
+          mountPropagation: Bidirectional          
       serviceAccountName: ds
       terminationGracePeriodSeconds: 10
       volumes:
@@ -47,3 +49,7 @@ spec:
           path: /var/lib/kubelet/device-plugins
           type: ""
         name: deviceplugin
+      - hostPath:
+          path: /root/k8slanns
+          type: ""
+        name: ns    

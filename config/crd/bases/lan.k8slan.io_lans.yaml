@@ -40,13 +40,13 @@ spec:
             description: spec defines the desired state of LAN
             properties:
               bridge:
-                description: foo is an example field of LAN. Edit lan_types.go to
-                  remove/update
                 type: string
               defaultVxlanDev:
                 type: string
               force:
                 type: boolean
+              ns:
+                type: string
               spokes:
                 items:
                   type: string
@@ -67,6 +67,7 @@ spec:
                 type: integer
             required:
             - bridge
+            - ns
             - spokes
             - vni
             - vxlan

@@ -15,7 +15,7 @@ import (
 const (
 	tapPath = "/dev/tap"
 	// Interfaces will be named as <Name><suffix>[0-<Capacity>]
-	suffix = "Mvp" // if lower device does not exist.
+	suffix = "M"
 	// DefaultCapacity is the default when no capacity is provided
 	DefaultCapacity = 1
 	// DefaultMode is the default when no mode is provided
