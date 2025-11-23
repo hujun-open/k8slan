@@ -19,6 +19,22 @@ spec:
         app.kubernetes.io/name: k8slan
     spec:
       hostNetwork: true
+      initContainers:
+      - name: install-cni
+        command: ["sh","-c","rm -rf /host/opt/cni/bin/macvtap; cp -f /macvtap-cni /host/opt/cni/bin/macvtap"]
+        image: controller:latest
+        resources:
+          requests:
+            cpu: "10m"
+            memory: "15Mi"
+        securityContext:
+          runAsUser: 0
+          runAsGroup: 0            
+          privileged: true
+        volumeMounts:
+          - name: cni
+            mountPath: /host/opt/cni/bin
+            mountPropagation: Bidirectional
       containers:
       - command:
         - /ds
@@ -45,6 +61,9 @@ spec:
       serviceAccountName: ds
       terminationGracePeriodSeconds: 10
       volumes:
+      - name: cni
+        hostPath:
+          path: /opt/cni/bin      
       - hostPath:
           path: /var/lib/kubelet/device-plugins
           type: ""

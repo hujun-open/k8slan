@@ -76,15 +76,19 @@ func (r *LANReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 		// The object is being deleted
 		if controllerutil.ContainsFinalizer(lan, myFinalizerName) {
 			// our finalizer is present, so let's handle any external dependency
-			interfaces.Remove(lan)
+			log.Info("removing lan", "name", lan.Name)
+			interfaces.Remove(*lan.Spec.NS)
 			spec := lan.Spec
 			r.DPRemoveChan <- &spec
 			// remove our finalizer from the list and update it.
-			patch := client.MergeFrom(lan.DeepCopy())
+			// patch := client.MergeFrom(lan.DeepCopy())
 			controllerutil.RemoveFinalizer(lan, myFinalizerName)
-			if err := r.Patch(ctx, lan, patch); err != nil {
+			if err := r.Update(ctx, lan); err != nil {
 				return ctrl.Result{}, err
 			}
+			// if err := r.Patch(ctx, lan, patch); err != nil {
+			// 	return ctrl.Result{}, err
+			// }
 
 		}
 

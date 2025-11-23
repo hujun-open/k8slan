@@ -55,7 +55,6 @@ type LANSpec struct {
 	VxDevMap map[string]string `json:"vxlanDevMap,omitempty"`
 	// +optional
 	VxPort *int32 `json:"vxlanPort,omitempty"`
-	Force  bool   `json:"force,omitempty"`
 	// +required
 	SpokeList []string `json:"spokes,omitempty"`
 }

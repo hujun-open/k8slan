@@ -5,6 +5,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/hujun-open/k8slan/api/v1beta1"
@@ -33,81 +34,44 @@ func Ensure(macName, spokeName string, lan *v1beta1.LANSpec, hostname, macvtapMo
 			return -1, fmt.Errorf("failed to open ns %v, %w", *lan.NS, err)
 		}
 	}
+	//bring lo interface in NS up
+	err = lanNS.Do(func(hostNs ns.NetNS) error {
+		l, ierr := netlink.LinkByName("lo")
+		if ierr != nil {
+			return ierr
+		}
+		return netlink.LinkSetUp(l)
+	})
+	if err != nil {
+		return -1, fmt.Errorf("failed to bring lo up in ns, %w", err)
+	}
 
 	//get underly link name
 	vxDevName := lan.DefaultVxDev
 	if _, ok := lan.VxDevMap[hostname]; ok {
 		vxDevName = lan.VxDevMap[hostname]
 	}
-	//check if it is already in NS
-	var vxDevLink netlink.Link
-	err = lanNS.Do(func(hostNs ns.NetNS) error {
-		vxDevLink, err = netlink.LinkByName(vxDevName)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
-	if err != nil {
-		//not in NS, check if it exists in host NS
-		vxDevLink, err = netlink.LinkByName(vxDevName)
-		if err != nil {
-			return -1, fmt.Errorf("vxlan dev %v not found, %w", vxDevName, err)
-		}
-		//move it into NS
-		err = netlink.LinkSetNsFd(vxDevLink, int(lanNS.Fd()))
-		if err != nil {
-			return -1, fmt.Errorf("failed to move vx lan %v dev into ns %v, %w", vxDevName, *lan.NS, err)
-		}
-	}
 
-	//bring vxdev and lo interface up
-	err = lanNS.Do(func(hostNs ns.NetNS) error {
-		l, ierr := netlink.LinkByName("lo")
-		if ierr != nil {
-			return ierr
-		}
-		ierr = netlink.LinkSetUp(l)
-		if ierr != nil {
-			return ierr
-		}
-		vxDevLink, ierr = netlink.LinkByName(vxDevName)
-		if ierr != nil {
-			return ierr
-		}
-		ierr = netlink.LinkSetUp(vxDevLink)
-		if ierr != nil {
-			return ierr
-		}
-		return nil
-	})
+	//check it exists
+	var vxDevLink netlink.Link
+	vxDevLink, err = netlink.LinkByName(vxDevName)
 	if err != nil {
-		return -1, fmt.Errorf("failed to bring lo or vxlan dev up in ns, %w", err)
+		return -1, fmt.Errorf("vxlan dev %v not found, %w", vxDevName, err)
 	}
+	needToAdd := false
 	mtu := vxDevLink.Attrs().MTU - maxVxLANEncapOverhead
 	err = lanNS.Do(func(hostNs ns.NetNS) error {
 		//bridge
-		needToAdd := false
-		removeOld := false
 		var br netlink.Link
 		br, err = netlink.LinkByName(*lan.BridgeName)
 		if err != nil {
 			needToAdd = true
 		} else {
 			if br.Type() != "bridge" {
-				if !lan.Force {
-					return fmt.Errorf("interface %v already exists but not a bridge", lan.BridgeName)
-				} else {
-					needToAdd = true
-					removeOld = true
-				}
+				return fmt.Errorf("interface %v already exists but not a bridge", lan.BridgeName)
 			}
 		}
 		if needToAdd {
-			//remove existing one, if any
-			if removeOld {
-				netlink.LinkDel(br)
-			}
 			//create bridge interface
 			la := netlink.NewLinkAttrs()
 			la.Name = *lan.BridgeName
@@ -128,7 +92,6 @@ func Ensure(macName, spokeName string, lan *v1beta1.LANSpec, hostname, macvtapMo
 		//vxlan
 		var vxLink netlink.Link
 		needToAdd = false
-		removeOld = false
 		grpSpec := netip.MustParseAddr(*lan.VxLANGrp)
 
 		vxLink, err = netlink.LinkByName(*lan.VxLANName)
@@ -136,77 +99,65 @@ func Ensure(macName, spokeName string, lan *v1beta1.LANSpec, hostname, macvtapMo
 			needToAdd = true
 		} else {
 			if vxLink.Type() != "vxlan" {
-				if !lan.Force {
-					return fmt.Errorf("interface %v already exists but not a vxlink", lan.VxLANName)
-				} else {
-					needToAdd = true
-					removeOld = true
-				}
+				return fmt.Errorf("interface %v already exists but not a vxlink", lan.VxLANName)
 			} else {
 				//check vxlink config
-				notEqualFunc := func(err error) error {
-					if !lan.Force {
-						return err
-					} else {
-						needToAdd = true
-						removeOld = true
-						return nil
-					}
-				}
 				vx := vxLink.(*netlink.Vxlan)
 				if grpSpec.Compare(netip.MustParseAddr(vx.Group.String())) != 0 {
-					err = fmt.Errorf("existing vxlan interface has a different group addr: %v", vx.Group.String())
-					if err = notEqualFunc(err); err != nil {
-						return err
-					}
+					log.Error(fmt.Errorf("existing vxlan interface has a different group addr: %v", vx.Group.String()), fmt.Sprintf("existing vlan interface %v has different config", *lan.VxLANName))
+					needToAdd = true
+
 				}
 				if vx.VxlanId != int(*lan.VNI) {
-					err = fmt.Errorf("existing vxlan interface has a different vni: %v", vx.VxlanId)
-					if err = notEqualFunc(err); err != nil {
-						return err
-					}
+					// err = fmt.Errorf("existing vxlan interface has a different vni: %v", vx.VxlanId)
+					log.Error(fmt.Errorf("existing vxlan interface has a different vni: %v", vx.VxlanId), fmt.Sprintf("existing vlan interface %v has different config", *lan.VxLANName))
+					needToAdd = true
 				}
 				if vx.VtepDevIndex != vxDevLink.Attrs().Index {
-					err = fmt.Errorf("existing vxlan interface has a different dev index: %v", vx.VtepDevIndex)
-					if err = notEqualFunc(err); err != nil {
-						return err
-					}
+					// err = fmt.Errorf("existing vxlan interface has a different dev index: %v", vx.VtepDevIndex)
+					log.Error(fmt.Errorf("existing vxlan interface has a different dev index: %v", vx.VtepDevIndex), fmt.Sprintf("existing vlan interface %v has different config", *lan.VxLANName))
+					needToAdd = true
+				}
+				if vx.Port != int(*lan.VxPort) {
+					log.Error(fmt.Errorf("existing vxlan interface has a different port: %v", vx.Port), fmt.Sprintf("existing vlan interface %v has different config", *lan.VxLANName))
+					needToAdd = true
 				}
 
 			}
 		}
 
 		if needToAdd {
-			if removeOld {
-				netlink.LinkDel(vxLink)
-			}
-			log.Info("create vxlan interface", "dev", vxDevName, "port", *lan.VxPort)
-			vxLink, err = CreateVXLANIF(lan, vxDevName, mtu, int(*lan.VxPort))
-			if err != nil {
-				return fmt.Errorf("failed to create vxlan interface, %w", err)
-			}
+			LinkDelete(*lan.VxLANName)
+
+			// vxLink, err = CreateVXLANIF(lan, vxDevLink.Attrs().Index, mtu, int(*lan.VxPort))
+			// if err != nil {
+			// 	return fmt.Errorf("failed to create vxlan interface, %w", err)
+			// }
 
 		}
-		//attach vxlan to br
-		err = netlink.LinkSetMaster(vxLink, br)
-		if err != nil {
+		// //attach vxlan to br
+		// err = netlink.LinkSetMaster(vxLink, br)
+		// if err != nil {
 
-			return fmt.Errorf("failed to set master of vxlan interface, %w", err)
-		}
-		//set grp_fwd_mask
-		err = netlink.LinkSetBRSlaveGroupFwdMask(vxLink, BRSlaveGrpFwdMask)
-		if err != nil {
-			return fmt.Errorf("failed to set vxlan slave grp fwd mask, %w", err)
-		}
+		// 	return fmt.Errorf("failed to set master of vxlan interface, %w", err)
+		// }
+		// //set grp_fwd_mask
+		// err = netlink.LinkSetBRSlaveGroupFwdMask(vxLink, BRSlaveGrpFwdMask)
+		// if err != nil {
+		// 	return fmt.Errorf("failed to set vxlan slave grp fwd mask, %w", err)
+		// }
 		//creating veth interfaces
 		//remove existing vlan interface with same name
-		LinkDelete(spokeName)
+		peerName := getPeerVethName(spokeName)
+		LinkDelete(peerName)
+		time.Sleep(time.Second)
 		la := netlink.LinkAttrs{
 			ParentIndex: br.Attrs().Index,
 			Name:        spokeName,
 			TxQLen:      -1,
+			MTU:         mtu,
 		}
-		peerName := getPeerVethName(spokeName)
+
 		vlink := &netlink.Veth{
 			PeerName:  peerName,
 			LinkAttrs: la,
@@ -238,6 +189,40 @@ func Ensure(macName, spokeName string, lan *v1beta1.LANSpec, hostname, macvtapMo
 	if err != nil {
 		return -1, err
 	}
+	//add vxlan interface if needed
+	if needToAdd {
+		err := CreateVXLANIF(lan, vxDevLink.Attrs().Index, int(lanNS.Fd()), mtu, int(*lan.VxPort))
+		if err != nil {
+			return -1, fmt.Errorf("failed to create vxlan interface, %w", err)
+		}
+		//bring it up
+		err = lanNS.Do(func(hostNs ns.NetNS) error {
+			vxLink, err := netlink.LinkByName(*lan.VxLANName)
+			if err != nil {
+				return err
+			}
+			br, err := netlink.LinkByName(*lan.BridgeName)
+			if err != nil {
+				return err
+			}
+			//attach vxlan to br
+			err = netlink.LinkSetMaster(vxLink, br)
+			if err != nil {
+				return fmt.Errorf("failed to set master of vxlan interface, %w", err)
+			}
+			//set grp_fwd_mask
+			err = netlink.LinkSetBRSlaveGroupFwdMask(vxLink, BRSlaveGrpFwdMask)
+			if err != nil {
+				return fmt.Errorf("failed to set vxlan slave grp fwd mask, %w", err)
+			}
+			//bring link up
+			return netlink.LinkSetUp(vxLink)
+		})
+	}
+	if err != nil {
+		return -1, fmt.Errorf("failed to create vxlink interface in the ns, %w", err)
+	}
+
 	//bring up spoke link in host ns
 	vlink, err := netlink.LinkByName(spokeName)
 	if err != nil {

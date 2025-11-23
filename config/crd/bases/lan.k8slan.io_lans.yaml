@@ -43,8 +43,6 @@ spec:
                 type: string
               defaultVxlanDev:
                 type: string
-              force:
-                type: boolean
               ns:
                 type: string
               spokes:

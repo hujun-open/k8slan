@@ -173,3 +173,14 @@ func getCurrentThreadNetNSPath() string {
 	// use the thread's net namespace since the thread is switching around
 	return fmt.Sprintf("/proc/%d/task/%d/ns/net", os.Getpid(), unix.Gettid())
 }
+
+func DeleteNamed(name string) error {
+	namedPath := path.Join(getNsRunDir(), name)
+
+	err := unix.Unmount(namedPath, unix.MNT_DETACH)
+	if err != nil {
+		return err
+	}
+
+	return os.Remove(namedPath)
+}
