@@ -15,19 +15,21 @@ The design requiurements of k8slan are following:
 ## implementation
 k8slan contains following components:
 1. LAN CR
-1. LAN CR operator
-1. a webhook for defaulting and validating LAN CR
+1. LAN CR operator, and webhook for defaulting and validating LAN CR
+1. a LAN CR daemonset (LAN DS)
 1. a MACVTAP device plugin
 1. stock kubevirt MACVTAP CNI plugin 
 
-note: the operator, webhook and device plugin are a signle executive, installed as k8s daemonset
+notes: 
+ - the LAN DS and device plugin are a signle executive
+ 
 
 creation work flow is following:
 1. user provioned a LAN CR, and net-attch-def for all spokes in the CR
 2. the webhook default/validate the CR
-3. the operator adds host specific finalizer and send the CR to device plugin via golang channel
-4. device plugin advertise the spoke to k8s, so that every worker has the spoke resrouce available 
-5. user provisioned a pod (or kubevirt VM) using the net-attach-def int #1
+3. the operator creates a net-attach-def for each spoke in the CR
+4. the LAN DS adds host specific finalizer and send the CR to device plugin via golang channel
+5. device plugin advertise the spoke to k8s, so that every worker has the spoke resrouce available 
 6. k8s schedule the pod to one of workers (since every worker will advetise the spoke resource)
 7. kubelet on the k8s chosen worker invoke device plugin's `Allocate` method, which will creates the namespce, bridge, vxlan, veth and macvtap interfaces
 8. pod is created, kubelet then invoke MACVTAP CNI plugin to use the macvtap interface created in #7
@@ -37,8 +39,9 @@ remove work flow is following:
 - when pod is removed, no interface on the host is removed, since everytime pod is created, the veth and macvtap interface is always recreated even if they already exists
 
 - when CR is removed:
-    1. the the operator send LAN CR to device plugin via another golang channel
+    1. the the LAN DS send LAN CR to device plugin via another golang channel
     2. the device plugin removes the namespace, which implictly removes all created interfaces
+    3. all corresponding net-attach-def are also removed (due to fact their owner is the LAN)
 
 ## example topo
 

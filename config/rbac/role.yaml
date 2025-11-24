@@ -5,11 +5,41 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - k8s.cni.cncf.io
+  resources:
+  - network-attachment-definitions
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - lan.k8slan.io
   resources:
   - lans
   verbs:
+  - create
+  - delete
   - get
   - list
+  - patch
   - update
   - watch
+- apiGroups:
+  - lan.k8slan.io
+  resources:
+  - lans/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - lan.k8slan.io
+  resources:
+  - lans/status
+  verbs:
+  - get
+  - patch
+  - update

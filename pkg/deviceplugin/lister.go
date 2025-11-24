@@ -9,10 +9,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
-const (
-	resourceNamespace = "macvtap.k8slan.io"
-)
-
 type macvtapLister struct {
 	DeviceList map[string]*v1beta1.LANSpec //key is the vlan name in the LAN
 	// lock   *sync.RWMutex
@@ -38,7 +34,7 @@ func NewMacvtapLister(netNsPath string, add, remove chan *v1beta1.LANSpec) *macv
 }
 
 func (ml macvtapLister) GetResourceNamespace() string {
-	return resourceNamespace
+	return v1beta1.ResourceNamespace
 }
 func (ml *macvtapLister) report(pluginListCh chan dpm.PluginNameList) {
 	curList := ml.getCurrentPlugins()

@@ -105,39 +105,8 @@ spec:
 
     **Note: having duplicate value for above field could cause networking issue and/or connecting pod failed to create**
 
-2. for each spoke creates a NetworkAttachmentDefinition:
 
-In `k8s.v1.cni.cncf.io/resourceName` annotation `macvtap.k8slan.io/vlan11`, `vlan11` must match the spoke name
-
-```
-kind: NetworkAttachmentDefinition
-apiVersion: k8s.cni.cncf.io/v1
-metadata:
-  name: pod1
-  annotations:
-    k8s.v1.cni.cncf.io/resourceName: macvtap.k8slan.io/pod1
-spec:
-  config: '{
-      "cniVersion": "0.3.1",
-      "name": "pod1",
-      "type": "macvtap"
-    }'
----
-kind: NetworkAttachmentDefinition
-apiVersion: k8s.cni.cncf.io/v1
-metadata:
-  name: pod2
-  annotations:
-    k8s.v1.cni.cncf.io/resourceName: macvtap.k8slan.io/pod2
-spec:
-  config: '{
-      "cniVersion": "0.3.1",
-      "name": "pod2",
-      "type": "macvtap"
-    }'
-```
-
-3. create the pod attach to the LAN:
+2. create the pod attach to the LAN:
 - reference the NetworkAttachmentDefinition 
 - reference spoke name in resource section: `macvtap.k8slan.io/vlan44: 1`
 ```
@@ -158,7 +127,7 @@ spec:
         macvtap.k8slan.io/pod2: 1
 ```
 
-3a. Or create a kubevirt VM connect to the LAN
+2a. Or create a kubevirt VM connect to the LAN
 - refer to [kubevirt macvtap guide](https://kubevirt.io/user-guide/network/net_binding_plugins/macvtap/).
 - reference to the NetworkAttachmentDefinition in the `networks` section
 ```

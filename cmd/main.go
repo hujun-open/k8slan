@@ -25,6 +25,10 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	lanv1beta1 "github.com/hujun-open/k8slan/api/v1beta1"
+	"github.com/hujun-open/k8slan/internal/controller"
+	webhookv1beta1 "github.com/hujun-open/k8slan/internal/webhook/v1beta1"
+	ncv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -34,9 +38,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
-
-	lanv1beta1 "github.com/hujun-open/k8slan/api/v1beta1"
-	webhookv1beta1 "github.com/hujun-open/k8slan/internal/webhook/v1beta1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -47,7 +48,7 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
+	utilruntime.Must(ncv1.AddToScheme(scheme))
 	utilruntime.Must(lanv1beta1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
@@ -184,6 +185,13 @@ func main() {
 			setupLog.Error(err, "unable to create webhook", "webhook", "LAN")
 			os.Exit(1)
 		}
+	}
+	if err := (&controller.LANReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "LAN")
+		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
 

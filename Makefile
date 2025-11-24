@@ -110,6 +110,7 @@ build: manifests generate fmt vet ## Build manager binary.
 	CGO_ENABLED=0 go build -o bin/ds ./dset/
 
 
+
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./cmd/main.go

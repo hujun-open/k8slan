@@ -13,3 +13,4 @@
 # re-include go build output
 !manager
 !ds
+!nsbridge

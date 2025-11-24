@@ -21,6 +21,7 @@ import (
 	"net/netip"
 	"strings"
 
+	ncv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -159,4 +160,35 @@ type LANList struct {
 
 func init() {
 	SchemeBuilder.Register(&LAN{}, &LANList{})
+}
+
+const (
+	ResourceNamespace = "macvtap.k8slan.io"
+)
+
+func (lanspec *LANSpec) GetNADs(ns string) []*ncv1.NetworkAttachmentDefinition {
+	cfgTemplate := `{
+      "cniVersion": "0.3.1",
+      "name": "%v",
+      "type": "macvtap"
+    }`
+	r := []*ncv1.NetworkAttachmentDefinition{}
+	for _, spoke := range lanspec.SpokeList {
+		r = append(r, &ncv1.NetworkAttachmentDefinition{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "k8s.cni.cncf.io/v1",
+				Kind:       "NetworkAttachmentDefinition",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      spoke,
+				Namespace: ns,
+				Annotations: map[string]string{
+					"k8s.v1.cni.cncf.io/resourceName": fmt.Sprintf("%v/%v", ResourceNamespace, spoke)},
+			},
+			Spec: ncv1.NetworkAttachmentDefinitionSpec{
+				Config: fmt.Sprintf(cfgTemplate, spoke),
+			},
+		})
+	}
+	return r
 }
