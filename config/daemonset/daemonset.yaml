@@ -21,7 +21,7 @@ spec:
       hostNetwork: true
       initContainers:
       - name: install-cni
-        command: ["sh","-c","rm -rf /host/opt/cni/bin/macvtap; cp -f /macvtap-cni /host/opt/cni/bin/macvtap;"]
+        command: ["sh","-c","rm -rf /host/opt/cni/bin/macvtap; cp -f /macvtap-cni /host/opt/cni/bin/macvtap;rm -rf /host/opt/cni/bin/k8slanveth; cp -f /k8slanveth /host/opt/cni/bin/k8slanveth;"]
         image: controller:latest
         resources:
           requests:

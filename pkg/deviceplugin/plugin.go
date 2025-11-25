@@ -3,6 +3,7 @@ package deviceplugin
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/hujun-open/k8slan/api/v1beta1"
@@ -15,20 +16,22 @@ import (
 const (
 	tapPath = "/dev/tap"
 	// Interfaces will be named as <Name><suffix>[0-<Capacity>]
-	suffix = "M"
+	macvtapSuffix = "M"
+	vethSuffix    = "V"
 	// DefaultCapacity is the default when no capacity is provided
-	DefaultCapacity = 1
+	// DefaultCapacity = 1
 	// DefaultMode is the default when no mode is provided
 	DefaultMode = "passthru"
 )
 
 type macvtapDevicePlugin struct {
-	Name        string
-	hostName    string
-	lan         *v1beta1.LANSpec
-	Capacity    int
-	Mode        string
-	stopWatcher chan struct{}
+	Name         string
+	hostName     string
+	lan          *v1beta1.LANSpec
+	Capacity     int
+	Mode         string
+	stopWatcher  chan struct{}
+	dummyMACVTAP bool
 	pluginapi.UnimplementedDevicePluginServer
 }
 
@@ -38,23 +41,23 @@ func NewMacvtapDevicePlugin(name string, lan *v1beta1.LANSpec) *macvtapDevicePlu
 		panic(err)
 	}
 	return &macvtapDevicePlugin{
-		Name:        name,
-		Mode:        DefaultMode,
-		Capacity:    DefaultCapacity,
-		lan:         lan,
-		stopWatcher: make(chan struct{}),
-		hostName:    hname,
+		Name:         v1beta1.GetSpokeNameFromResourceName(name),
+		Mode:         DefaultMode,
+		lan:          lan,
+		stopWatcher:  make(chan struct{}),
+		hostName:     hname,
+		dummyMACVTAP: strings.HasPrefix(name, v1beta1.VETHPreffix),
 	}
 }
 
 func (mdp *macvtapDevicePlugin) generateMacvtapDevices() []*pluginapi.Device {
 	var macvtapDevs []*pluginapi.Device
 
-	var capacity = mdp.Capacity
-	if capacity <= 0 {
-		capacity = DefaultCapacity
+	var capacity = 1
+	suffix := macvtapSuffix
+	if mdp.dummyMACVTAP {
+		suffix = vethSuffix
 	}
-
 	for i := 0; i < capacity; i++ {
 		name := fmt.Sprint(mdp.Name, suffix, i)
 		macvtapDevs = append(macvtapDevs, &pluginapi.Device{
@@ -96,7 +99,7 @@ func (mdp *macvtapDevicePlugin) Allocate(ctx context.Context, r *pluginapi.Alloc
 			var index int
 			var err error
 			// index, err = util.RecreateMacvtap(name, mdp.LowerDevice, mdp.Mode)
-			index, err = interfaces.Ensure(macVtapName, mdp.Name, mdp.lan, mdp.hostName, mdp.Mode)
+			index, err = interfaces.Ensure(macVtapName, mdp.Name, mdp.lan, mdp.hostName, mdp.Mode, mdp.dummyMACVTAP)
 			if err != nil {
 				return nil, err
 			}

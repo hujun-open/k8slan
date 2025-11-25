@@ -1,5 +1,7 @@
 # k8slan
-k8slan creates a virtual LAN across the k8s cluster, pod attaches to the LAN using [MACVTAP](https://virt.kernelnewbies.org/MacVTap) CNI plugin via [multus](https://k8snetworkplumbingwg.github.io/multus-cni/). 
+k8slan creates virtual LANs across the k8s cluster, main use case is to have one or multiple virutal layer2 networks that connects CNFs/VNFs;
+
+*note: It is optimized for easy of use and compatiable with CNF/VNF, not for performance*
 
 ### Topology
 ```mermaid
@@ -12,13 +14,13 @@ architecture-beta
             service vxlan1(logos:nanonets)[VxLAN1] in ns
             service veth_B1(logos:nanonets)[Veth1 Br] in ns
             vxlan1_dev:T --> B:vxlan1
-        service veth1(logos:nanonets)[Veth1] in worker1
+
         group pod1[pod1] in worker1
-        service macvtap1(logos:nanonets)[macvtap1] in pod1
+        service veth1(logos:nanonets)[Veth1] in pod1
         br1:L -- R:vxlan1
         br1:B -- T:veth_B1
         veth1:L -- R:veth_B1
-        veth1:T -- B:macvtap1
+        
     
     group worker2[worker2]
         group ns2[LAN1_NS] in worker2
@@ -28,14 +30,14 @@ architecture-beta
             service veth3_B(logos:nanonets)[Veth3 Br] in ns2
             service vxlan2_dev[VxLAN2_dev] in ns2
             vxlan2_dev:T --> B:vxlan2
-        service veth2(logos:nanonets)[Veth2] in worker2
+        
         group pod2[pod2] in worker2
-            service macvtap2(logos:nanonets)[macvtap2] in pod2
+            service veth2(logos:nanonets)[Veth2] in pod2
         br2:R -- L:vxlan2
         br2:B -- T:veth2_B
         veth2:R -- L:veth2_B
-        veth2:T -- B:macvtap2
-        group pod3[pod3] in worker2
+
+        group pod3[Kubevirt VM pod3] in worker2
             service macvtap3(logos:nanonets)[macvtap3] in pod3
         service veth3(logos:nanonets)[Veth3] in worker2
         br2:T -- B:veth3_B
@@ -52,8 +54,11 @@ For a given virtual LAN, following are created on each participating worker:
     - a vxlan interface use multicast address that connects all nodes together and also attach to the bridge interface
         - the vxlan underlying device lives in the host namespace, so it is shared across LANs
     - a list of spoke veth interfaces attache to the bridge, one for each local pod attaching to the LAN
-- a list of veth interfaces in host NS, which are the corresponding peers of veth interfaces in the LAN NS
-- a list of macvtap interfaces on one of each veth interface pair
+- for a Kubevirt VM pod attached to the LAN
+  - a veth interfaces in host NS, which is the corresponding peers of veth interfaces in the LAN NS
+  - a macvtap interfaces inside kubevirt VM pod, which is on top of the veth interface in host NS
+- for a other type of pod attached to the LAN
+  - a veth interfaces in pod NS, which is the corresponding peers of veth interfaces in the LAN NS
 
 ## Installation 
 ### Prerequisites
@@ -105,10 +110,13 @@ spec:
 
     **Note: having duplicate value for above field could cause networking issue and/or connecting pod failed to create**
 
+2. k8slan will create two NetworkAttachmentDefinition for each spoke in the CR:
+  - one is `k8slan-mac-<spoke>`
+  - one is `k8slan-veth-<spoke>`
 
-2. create the pod attach to the LAN:
-- reference the NetworkAttachmentDefinition 
-- reference spoke name in resource section: `macvtap.k8slan.io/vlan44: 1`
+3. create the pod attach to the LAN:
+- reference the NetworkAttachmentDefinition with prefix `k8slan-veth-`
+- reference spoke name in resource section: `macvtap.k8slan.io/k8slan-veth-pod2: 1`
 ```
 apiVersion: v1
 kind: Pod
@@ -127,9 +135,9 @@ spec:
         macvtap.k8slan.io/pod2: 1
 ```
 
-2a. Or create a kubevirt VM connect to the LAN
+3a. Or create a kubevirt VM connect to the LAN
 - refer to [kubevirt macvtap guide](https://kubevirt.io/user-guide/network/net_binding_plugins/macvtap/).
-- reference to the NetworkAttachmentDefinition in the `networks` section
+- reference to the NetworkAttachmentDefinition with prefix `k8slan-mac-` in the `networks` section
 ```
 apiVersion: kubevirt.io/v1
 kind: VirtualMachine
@@ -171,7 +179,7 @@ spec:
         pod: {}
       - name: hostnetwork
         multus:
-          networkName: pod1
+          networkName: k8slan-mac-pod1
       terminationGracePeriodSeconds: 0
       volumes:
       - containerDisk:

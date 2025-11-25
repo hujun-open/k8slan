@@ -108,6 +108,7 @@ lint-config: golangci-lint ## Verify golangci-lint linter configuration
 build: manifests generate fmt vet ## Build manager binary.
 	CGO_ENABLED=0 go build -o bin/manager cmd/main.go
 	CGO_ENABLED=0 go build -o bin/ds ./dset/
+	CGO_ENABLED=0 go build -o bin/k8slanveth cni/k8slanveth/main.go
 
 
 
@@ -122,6 +123,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 docker-build: build ## Build docker image with the manager.
 	cp -f bin/manager .
 	cp -f bin/ds .
+	cp -f bin/k8slanveth .
 	$(CONTAINER_TOOL) build -t ${IMG} .
 
 .PHONY: docker-push

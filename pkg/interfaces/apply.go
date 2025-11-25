@@ -14,7 +14,7 @@ import (
 )
 
 // ensure creates all objs to match lan's spec
-func Ensure(macName, spokeName string, lan *v1beta1.LANSpec, hostname, macvtapMode string) (int, error) {
+func Ensure(macName, spokeName string, lan *v1beta1.LANSpec, hostname, macvtapMode string, dummyMacvtap bool) (int, error) {
 	log := ctrl.Log.WithName("deviceplugin")
 	var err error
 	var lanNS ns.NetNS
@@ -233,9 +233,36 @@ func Ensure(macName, spokeName string, lan *v1beta1.LANSpec, hostname, macvtapMo
 		return -1, fmt.Errorf("failed to bring up spoke link %v in host ns, %w", spokeName, err)
 	}
 	//create macvtap interface
-	return RecreateMacvtap(macName, spokeName, macvtapMode)
+	if !dummyMacvtap {
+		return RecreateMacvtap(macName, spokeName, macvtapMode)
+	} else {
+		//create dummy one
+		dummyLink, err := netlink.LinkByName(dummyIfName)
+		if err != nil {
+			//create dummy link
+			dummyLink = &netlink.Dummy{
+				LinkAttrs: netlink.LinkAttrs{
+					Name: dummyIfName,
+				},
+			}
+			err = netlink.LinkAdd(dummyLink)
+			if err != nil {
+				return -1, fmt.Errorf("failed to create dummy link %v, %w", dummyIfName, err)
+			}
+			dummyLink, err = netlink.LinkByName(dummyIfName)
+			if err != nil {
+				return -1, fmt.Errorf("failed to get newly created dummy link %v, %w", dummyIfName, err)
+			}
+		}
+		return RecreateMacvtap(macName, dummyIfName, "private")
+
+	}
 
 }
+
+const (
+	dummyIfName = "k8slan-dummy"
+)
 
 func getPeerVethName(name string) string {
 	return name + "p"

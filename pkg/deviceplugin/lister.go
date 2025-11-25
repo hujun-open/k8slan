@@ -47,14 +47,16 @@ func (ml *macvtapLister) Discover(pluginListCh chan dpm.PluginNameList) {
 	for {
 		select {
 		case lan := <-ml.AddChan:
-			for _, vlanName := range lan.SpokeList {
-				ml.DeviceList[vlanName] = lan
+			for _, spokeName := range lan.SpokeList {
+				ml.DeviceList[v1beta1.GetDPResouceName(spokeName, true)] = lan
+				ml.DeviceList[v1beta1.GetDPResouceName(spokeName, false)] = lan
 			}
 			ml.report(pluginListCh)
 
 		case lan := <-ml.RemovChan:
 			for _, vlanName := range lan.SpokeList {
-				delete(ml.DeviceList, vlanName)
+				delete(ml.DeviceList, v1beta1.GetDPResouceName(vlanName, true))
+				delete(ml.DeviceList, v1beta1.GetDPResouceName(vlanName, false))
 			}
 			ml.report(pluginListCh)
 

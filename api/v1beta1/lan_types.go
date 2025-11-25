@@ -164,31 +164,69 @@ func init() {
 
 const (
 	ResourceNamespace = "macvtap.k8slan.io"
+	MACVTAPPreffix    = "k8slan-mac-"
+	VETHPreffix       = "k8slan-veth-"
 )
 
+func IsMACVTAPResource(resName string) bool {
+	return strings.HasPrefix(resName, MACVTAPPreffix)
+}
+
+func GetDPResouceName(name string, isDummyMac bool) string {
+	if isDummyMac {
+		return VETHPreffix + name
+	}
+	return MACVTAPPreffix + name
+}
+
+func GetSpokeNameFromResourceName(resName string) string {
+	switch {
+	case strings.HasPrefix(resName, VETHPreffix):
+		return strings.ReplaceAll(resName, VETHPreffix, "")
+	case strings.HasPrefix(resName, MACVTAPPreffix):
+		return strings.ReplaceAll(resName, MACVTAPPreffix, "")
+
+	}
+	return "badname"
+}
+
 func (lanspec *LANSpec) GetNADs(ns string) []*ncv1.NetworkAttachmentDefinition {
-	cfgTemplate := `{
+	macvtapTemplate := `{
       "cniVersion": "0.3.1",
       "name": "%v",
       "type": "macvtap"
     }`
-	r := []*ncv1.NetworkAttachmentDefinition{}
-	for _, spoke := range lanspec.SpokeList {
-		r = append(r, &ncv1.NetworkAttachmentDefinition{
+	vethTempalte := `{
+      "cniVersion": "0.3.1",
+      "name": "%v",
+      "type": "k8slanveth",
+	  "veth": "%v"
+    }`
+	genNAD := func(name, ns string) *ncv1.NetworkAttachmentDefinition {
+		cfgStr := fmt.Sprintf(macvtapTemplate, name)
+		if !IsMACVTAPResource(name) {
+			cfgStr = fmt.Sprintf(vethTempalte, name, GetSpokeNameFromResourceName(name))
+		}
+		return &ncv1.NetworkAttachmentDefinition{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: "k8s.cni.cncf.io/v1",
 				Kind:       "NetworkAttachmentDefinition",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      spoke,
+				Name:      name,
 				Namespace: ns,
 				Annotations: map[string]string{
-					"k8s.v1.cni.cncf.io/resourceName": fmt.Sprintf("%v/%v", ResourceNamespace, spoke)},
+					"k8s.v1.cni.cncf.io/resourceName": fmt.Sprintf("%v/%v", ResourceNamespace, name)},
 			},
 			Spec: ncv1.NetworkAttachmentDefinitionSpec{
-				Config: fmt.Sprintf(cfgTemplate, spoke),
+				Config: cfgStr,
 			},
-		})
+		}
+	}
+	r := []*ncv1.NetworkAttachmentDefinition{}
+	for _, spoke := range lanspec.SpokeList {
+		r = append(r, genNAD(GetDPResouceName(spoke, true), ns))
+		r = append(r, genNAD(GetDPResouceName(spoke, false), ns))
 	}
 	return r
 }
