@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: localhost/k8slan
-  newTag: v51
+  newTag: v53

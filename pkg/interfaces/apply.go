@@ -31,7 +31,12 @@ func Ensure(macName, spokeName string, lan *v1beta1.LANSpec, hostname, macvtapMo
 		//exists
 		lanNS, err = ns.GetNS(nsPath)
 		if err != nil {
-			return -1, fmt.Errorf("failed to open ns %v, %w", *lan.NS, err)
+			//failed to open existing ns mount, remove it and recreate it
+			DeleteNamed(*lan.NS)
+			lanNS, err = NewNS(*lan.NS)
+			if err != nil {
+				return -1, fmt.Errorf("failed to recreate ns %v, %w", *lan.NS, err)
+			}
 		}
 	}
 	//bring lo interface in NS up

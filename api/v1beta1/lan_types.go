@@ -179,6 +179,10 @@ func GetDPResouceName(name string, isDummyMac bool) string {
 	return MACVTAPPreffix + name
 }
 
+func GetNADName(name string, isVeth bool) string {
+	return GetDPResouceName(name, isVeth)
+}
+
 func GetSpokeNameFromResourceName(resName string) string {
 	switch {
 	case strings.HasPrefix(resName, VETHPreffix):
