@@ -8,12 +8,12 @@ k8slan creates virtual LANs across the k8s cluster, main use case is to have one
 architecture-beta
     service lan(internet)[LAN]
     group worker1[worker1]
+      service vxlan1_dev[VxLAN1_dev] in worker1
         group ns[LAN1_NS] in worker1
-            service vxlan1_dev[VxLAN1_dev] in ns
             service br1(logos:aws-eventbridge)[BR1] in ns
             service vxlan1(logos:nanonets)[VxLAN1] in ns
             service veth_B1(logos:nanonets)[Veth1 Br] in ns
-            vxlan1_dev:T --> B:vxlan1
+            vxlan1_dev:B --> T:vxlan1
 
         group pod1[pod1] in worker1
         service veth1(logos:nanonets)[Veth1] in pod1
@@ -23,13 +23,13 @@ architecture-beta
         
     
     group worker2[worker2]
+        service vxlan2_dev[VxLAN2_dev] in worker2
         group ns2[LAN1_NS] in worker2
             service vxlan2(logos:nanonets)[VxLAN2] in ns2
             service br2(logos:aws-eventbridge)[BR2] in ns2
             service veth2_B(logos:nanonets)[Veth2 Br] in ns2
-            service veth3_B(logos:nanonets)[Veth3 Br] in ns2
-            service vxlan2_dev[VxLAN2_dev] in ns2
-            vxlan2_dev:T --> B:vxlan2
+            service veth3_B(logos:nanonets)[Veth3 Br] in ns2            
+            vxlan2_dev:B --> T:vxlan2
         
         group pod2[pod2] in worker2
             service veth2(logos:nanonets)[Veth2] in pod2
@@ -102,7 +102,7 @@ spec:
   - pod2
 ```
 - `vxlanDevMap` list which interface to use as vxlan interface underlying device on the specified host, key is the hostname, value is the interface name; if a host is not listed here, then `defaultVxlanDev` is used
-- `spokes` is a list of veth interface names that that macvatp interfaces are based on, one for each connecting pod
+- `spokes` is a list of veth interface names, one for each connecting pod; in case of kubevirt VM, a macvtap interface is created on top of the veth interface.
 - following values must be unique across all LAN CRs
     - ns
     - spoke

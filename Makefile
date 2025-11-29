@@ -106,11 +106,9 @@ lint-config: golangci-lint ## Verify golangci-lint linter configuration
 
 .PHONY: build
 build: manifests generate fmt vet ## Build manager binary.
-	CGO_ENABLED=0 go build -o bin/manager cmd/main.go
-	CGO_ENABLED=0 go build -o bin/ds ./dset/
-	CGO_ENABLED=0 go build -o bin/k8slanveth cni/k8slanveth/main.go
-
-
+	CGO_ENABLED=0 go build -o manager cmd/main.go
+	CGO_ENABLED=0 go build -o ds ./dset/
+	CGO_ENABLED=0 go build -o k8slanveth cni/k8slanveth/main.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
@@ -121,9 +119,9 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
 docker-build: build ## Build docker image with the manager.
-	cp -f bin/manager .
-	cp -f bin/ds .
-	cp -f bin/k8slanveth .
+# 	cp -f bin/manager .
+# 	cp -f bin/ds .
+# 	cp -f bin/k8slanveth .
 	$(CONTAINER_TOOL) build -t ${IMG} .
 
 .PHONY: docker-push
