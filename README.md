@@ -77,6 +77,8 @@ e.g.
 
 `kubectl apply -f https://github.com/hujun-open/k8slan/releases/download/v0.0.1/all.yaml`
 
+This installs k8slan in the namespace `k8slan-system`. change the namespace in the `all.yaml` if a different namespace is needed.
+
 ### installed components
 - a macvtap CNI plugin on each host
 - a k8s namespace: k8slan-system, in the namespace:
@@ -91,7 +93,6 @@ apiVersion: lan.k8slan.io/v1beta1
 kind: LAN
 metadata:
     name: lan-test
-    namespace: k8slan-system
 spec:
   ns: knlvrf
   bridge: br2
@@ -127,7 +128,7 @@ kind: Pod
 metadata:
   name: nginx
   annotations:
-    k8s.v1.cni.cncf.io/networks: vlan44
+    k8s.v1.cni.cncf.io/networks: k8slan-veth-pod2
 spec:
   containers:
   - name: nginx
@@ -136,7 +137,7 @@ spec:
     - containerPort: 80
     resources:
       limits:
-        macvtap.k8slan.io/pod2: 1
+        macvtap.k8slan.io/k8slan-veth-pod2: 1
 ```
 
 3a. Or create a kubevirt VM connect to the LAN
