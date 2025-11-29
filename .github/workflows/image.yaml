@@ -37,11 +37,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: build manifests
+        run: make deploymanifests IMG=${{ env.REGISTRY }}/${{ env.IMG_BASE }}:${{ env.TAG }}
+      
       - name: Build and push image on Dockerhub
         run: make docker-buildx IMG=${{ env.REGISTRY }}/${{ env.IMG_BASE }}:${{ env.TAG }} VERSION=${{ env.TAG }} IMGNOTAG=${{ env.REGISTRY }}/${{ env.IMG_BASE }}
 
-      - name: build manifests
-        run: make deploymanifests IMG=${{ env.REGISTRY }}/${{ env.IMG_BASE }}:${{ env.TAG }}
       - name: Create Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
