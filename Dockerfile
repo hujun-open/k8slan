@@ -13,6 +13,7 @@ RUN go mod download
 
 # Copy the Go source (relies on .dockerignore to filter)
 COPY . .
+COPY --from=quay.io/kubevirt/macvtap-cni:latest /macvtap-cni .
 
 # Build
 # the GOARCH has no default value to allow the binary to be built according to the host where the command
@@ -23,6 +24,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o ma
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o ds ./dset/
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o k8slanveth cni/k8slanveth/main.go
 
+
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 FROM gcr.io/distroless/static:nonroot
@@ -30,7 +32,7 @@ WORKDIR /
 COPY --from=builder /workspace/manager .
 COPY --from=builder /workspace/ds .
 COPY --from=builder /workspace/k8slanveth .
-COPY --from=quay.io/kubevirt/macvtap-cni:latest /macvtap-cni .
+COPY --from=builder /workspace/macvtap-cni .
 USER 65532:65532
 
 ENTRYPOINT ["/manager"]
