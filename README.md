@@ -71,7 +71,11 @@ Before installation, following are required:
 
 
 ### installation
-`kubectl apply -f xxxx.yaml`
+`kubectl apply -f https://github.com/hujun-open/k8slan/releases/download/<version>/all.yaml`
+
+e.g. 
+
+`kubectl apply -f https://github.com/hujun-open/k8slan/releases/download/v0.0.1/all.yaml`
 
 ### installed components
 - a macvtap CNI plugin on each host
