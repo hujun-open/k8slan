@@ -9,6 +9,10 @@ jobs:
   build-and-push:
     name: Build and push image
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write    
     env:
       IMG_BASE: ${{ github.repository }}
       REGISTRY: ghcr.io
@@ -34,4 +38,4 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push image on Dockerhub
-        run: make docker-buildx IMG=${{ env.IMG_BASE }}:${{ env.TAG }} VERSION=${{ env.TAG }}
+        run: make docker-buildx IMG=${{ env.IMG_BASE }}:${{ env.TAG }} VERSION=${{ env.TAG }} MGBASE=${{ env.IMG_BASE }}
