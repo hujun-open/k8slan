@@ -10,6 +10,9 @@
 !go.mod
 !go.sum
 
+# re-include makefile
+!Makefile
+
 # re-include go build output
 !manager
 !ds

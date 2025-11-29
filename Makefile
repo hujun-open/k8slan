@@ -175,7 +175,7 @@ deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in
 	$(KUSTOMIZE) build config/default | $(KUBECTL) apply -f -
 
 .PHONY: deploymanifests
-deploymanifests: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+deploymanifests: generate manifests kustomize  ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	cd config/daemonset && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default > all.yaml
