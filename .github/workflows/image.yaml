@@ -38,4 +38,4 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push image on Dockerhub
-        run: make docker-buildx IMG=${{ env.IMG_BASE }}:${{ env.TAG }} VERSION=${{ env.TAG }} MGBASE=${{ env.IMG_BASE }}
+        run: make docker-buildx IMG=${{ env.REGISTRY }}/${{ env.IMG_BASE }}:${{ env.TAG }} VERSION=${{ env.TAG }} IMGNOTAG=${{ env.REGISTRY }}/${{ env.IMG_BASE }}
