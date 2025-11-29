@@ -80,7 +80,7 @@ e.g.
 This installs k8slan in the namespace `k8slan-system`. change the namespace in the `all.yaml` if a different namespace is needed.
 
 ### installed components
-- a macvtap CNI plugin on each host
+- macvtap and k8slanveth CNI plugin on each host
 - a k8s namespace: k8slan-system, in the namespace:
     - a deployment: k8slan-controller-manager 
     - a daemonset: k8slan-ds (require privilage)
