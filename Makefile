@@ -142,7 +142,7 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 	- $(CONTAINER_TOOL) buildx create --name k8slan-builder
 	$(CONTAINER_TOOL) buildx use k8slan-builder
 	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --tag ${IMG} -f Dockerfile.cross .
-	- $(CONTAINER_TOOL) buildx imagetools create --tag ${IMG} ${IMGNOTAG}:latest
+	- $(CONTAINER_TOOL) buildx imagetools create --tag ${IMGNOTAG}:latest ${IMG}
 	- $(CONTAINER_TOOL) buildx rm k8slan-builder 
 	rm Dockerfile.cross
 
