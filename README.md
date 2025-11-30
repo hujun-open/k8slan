@@ -92,20 +92,23 @@ This installs k8slan in the namespace `k8slan-system`. change the namespace in t
 apiVersion: lan.k8slan.io/v1beta1
 kind: LAN
 metadata:
-    name: lan-test
+    name: lan-example
 spec:
   ns: knlvrf
   bridge: br2
   vxlan: vx2
   vni: 222
-  defaultVxlanDev: eth0.10
+  defaultVxlanDev: eth0
   vxlanDevMap:
     worker1: eth1
     worker2: eth2
   spokes:
-  - pod1
-  - pod2
+  - srl
+  - vm
 ```
+- `ns` specifies the net namespace dedicate for the virtual LAN, it mounts under `/run/k8slan/netns/` of each k8s worker
+- `bridge` specifies the local bridge interface name, lives in the LAN namespace 
+- `vni` specifies the VNI used for the VXLAN tunnel
 - `vxlanDevMap` list which interface to use as vxlan interface underlying device on the specified host, key is the hostname, value is the interface name; if a host is not listed here, then `defaultVxlanDev` is used
 - `spokes` is a list of veth interface names, one for each connecting pod; in case of kubevirt VM, a macvtap interface is created on top of the veth interface.
 - following values must be unique across all LAN CRs
@@ -116,94 +119,93 @@ spec:
     **Note: having duplicate value for above field could cause networking issue and/or connecting pod failed to create**
 
 2. k8slan will create two NetworkAttachmentDefinition for each spoke in the CR:
-  - one is `k8slan-mac-<spoke>`
-  - one is `k8slan-veth-<spoke>`
+  - `k8slan-mac-<spoke>`: use by kubevirt VM to attach
+  - `k8slan-veth-<spoke>`: use for pod to attach
 
-3. create the pod attach to the LAN:
-- reference the NetworkAttachmentDefinition with prefix `k8slan-veth-`
-- reference spoke name in resource section: `macvtap.k8slan.io/k8slan-veth-pod2: 1`
+  note: For a given spoke, only one of these two should be used, not both.
+
+
+3. create the pod/vm attach to the LAN:
+
+3a. for pod 
+- reference the NetworkAttachmentDefinition with prefix `k8slan-veth-<spoke>`
+- reference spoke name in resource section: `macvtap.k8slan.io/k8slan-veth-<spoke>: 1`
+
+following is an example for Nokia SRL pod:
 ```
 apiVersion: v1
 kind: Pod
 metadata:
-  name: nginx
+  name: srl-test
   annotations:
-    k8s.v1.cni.cncf.io/networks: k8slan-veth-pod2
+    k8s.v1.cni.cncf.io/networks: k8slan-veth-srl@e1-1
 spec:
   containers:
-  - name: nginx
-    image: nginx:1.14.2
-    ports:
-    - containerPort: 80
+  - name: main
+    image: ghcr.io/nokia/srlinux:25.7
+    command:
+    - /tini
+    - --
+    - /usr/local/bin/fixuid
+    - -q
+    - /entrypoint.sh
+    - sudo
+    - -E
+    - bash
+    - -c
+    - "touch /.dockerenv && /opt/srlinux/bin/sr_linux"
+    securityContext:
+      privileged: true
     resources:
       limits:
-        macvtap.k8slan.io/k8slan-veth-pod2: 1
+        macvtap.k8slan.io/k8slan-veth-srl: 1
 ```
 
-3a. Or create a kubevirt VM connect to the LAN
+3b. create a kubevirt VM connect to the LAN
 - refer to [kubevirt macvtap guide](https://kubevirt.io/user-guide/network/net_binding_plugins/macvtap/).
-- reference to the NetworkAttachmentDefinition with prefix `k8slan-mac-` in the `networks` section
+- reference to the NetworkAttachmentDefinition with prefix `k8slan-mac-<spoke>` in the `networks` section
 ```
 apiVersion: kubevirt.io/v1
 kind: VirtualMachine
 metadata:
-  labels:
-    kubevirt.io/vm: vm-net-binding-macvtap
-  name: testvm-1
+  name: testvm
 spec:
   runStrategy: Always
   template:
     metadata:
       labels:
-        kubevirt.io/vm: testvm-1
+        kubevirt.io/size: small
+        kubevirt.io/domain: testvm
     spec:
       domain:
         devices:
           disks:
-          - disk:
-              bus: virtio
-            name: containerdisk
-          - disk:
-              bus: virtio
-            name: cloudinitdisk
+            - name: containerdisk
+              disk:
+                bus: virtio
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
           interfaces:
-          - name: podnet
+          - name: default
             masquerade: {}
-            ports:
-              - name: ssh
-                port: 22
-          - name: hostnetwork
+          - name: link1
             binding:
               name: macvtap
-          rng: {}
         resources:
           requests:
-            memory: 1024M
+            memory: 64M
       networks:
-      - name: podnet
+      - name: default
         pod: {}
-      - name: hostnetwork
+      - name: link1
         multus:
-          networkName: k8slan-mac-pod1
-      terminationGracePeriodSeconds: 0
+          networkName: k8slan-mac-vm
       volumes:
-      - containerDisk:
-          image: localhost/mytool:v1
-        name: containerdisk
-      - cloudInitNoCloud:
-          userData: |
-            #cloud-config
-            ssh_pwauth: True
-            users:
-              - name: test
-                shell: /bin/bash
-                plain_text_passwd: test123
-                lock_passwd: false
-                sudo: ALL=(ALL) NOPASSWD:ALL
-          networkData: |
-            version: 2
-            ethernets:
-              enp1s0:
-                dhcp4: true
-        name: cloudinitdisk
+        - name: containerdisk
+          containerDisk:
+            image: quay.io/kubevirt/cirros-container-disk-demo
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userDataBase64: SGkuXG4=
 ```
