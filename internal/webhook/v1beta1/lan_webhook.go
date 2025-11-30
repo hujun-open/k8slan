@@ -19,8 +19,10 @@ package v1beta1
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -121,9 +123,19 @@ func (v *LANCustomValidator) ValidateUpdate(_ context.Context, oldObj, newObj ru
 	if !ok {
 		return nil, fmt.Errorf("expected a LAN object for the newObj but got %T", newObj)
 	}
+	old, ok := oldObj.(*lanv1beta1.LAN)
+	if !ok {
+		return nil, fmt.Errorf("expected a LAN object for the oldObj but got %T", newObj)
+	}
+
 	lanlog.Info("Validation for LAN upon update", "name", lan.GetName())
 
-	// TODO(user): fill in your validation logic upon object update.
+	if !reflect.DeepEqual(lan.Spec, old.Spec) {
+		return nil, field.Forbidden(
+			field.NewPath("spec"),
+			"updates to the spec are not allowed; delete and recreate the resource instead",
+		)
+	}
 
 	return nil, lan.Spec.Validate()
 }
