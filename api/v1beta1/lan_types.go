@@ -62,6 +62,7 @@ type LANSpec struct {
 
 const (
 	maxLinuxIfNameLen = 13
+	FinalizerPrefix   = "finalizer.k8slan.io"
 )
 
 func checkInterfaceName(ifname string) error {

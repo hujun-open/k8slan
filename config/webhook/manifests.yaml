@@ -47,6 +47,7 @@ webhooks:
     operations:
     - CREATE
     - UPDATE
+    - DELETE
     resources:
     - lans
   sideEffects: None

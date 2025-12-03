@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -91,7 +92,7 @@ func (d *LANCustomDefaulter) Default(_ context.Context, obj runtime.Object) erro
 // TODO(user): change verbs to "verbs=create;update;delete" if you want to enable deletion validation.
 // NOTE: The 'path' attribute must follow a specific pattern and should not be modified directly here.
 // Modifying the path for an invalid path can cause API server errors; failing to locate the webhook.
-// +kubebuilder:webhook:path=/validate-lan-k8slan-io-v1beta1-lan,mutating=false,failurePolicy=fail,sideEffects=None,groups=lan.k8slan.io,resources=lans,verbs=create;update,versions=v1beta1,name=vlan-v1beta1.kb.io,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/validate-lan-k8slan-io-v1beta1-lan,mutating=false,failurePolicy=fail,sideEffects=None,groups=lan.k8slan.io,resources=lans,verbs=create;update;delete,versions=v1beta1,name=vlan-v1beta1.kb.io,admissionReviewVersions=v1
 
 // LANCustomValidator struct is responsible for validating the LAN resource
 // when it is created, updated, or deleted.
@@ -148,7 +149,12 @@ func (v *LANCustomValidator) ValidateDelete(ctx context.Context, obj runtime.Obj
 	}
 	lanlog.Info("Validation for LAN upon deletion", "name", lan.GetName())
 
-	// TODO(user): fill in your validation logic upon object deletion.
+	//fail if there is any non-k8slan finalizer
+	for _, fin := range lan.Finalizers {
+		if !strings.HasPrefix(fin, lanv1beta1.FinalizerPrefix) {
+			return nil, fmt.Errorf("found non-k8slan finalizer %v, can't remove", fin)
+		}
+	}
 
 	return nil, nil
 }

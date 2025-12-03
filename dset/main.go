@@ -54,7 +54,7 @@ func (r *LANReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 		log.Error(err, "unable to fetch LAN")
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
-	myFinalizerName := fmt.Sprintf("finalizer.k8slan.io/%v", r.hostName)
+	myFinalizerName := fmt.Sprintf("%v/%v", k8slan.FinalizerPrefix, r.hostName)
 	// fieldOwner := fmt.Sprintf("fieldowner.k8slan.io/%v", r.hostName)
 	if lan.ObjectMeta.DeletionTimestamp.IsZero() {
 		// The object is not being deleted, so if it does not have our finalizer,
