@@ -1,0 +1,15 @@
+processor:
+  maxDepth: 176
+  ignoreGroupVersions:
+    - "GVK"
+  ignoreTypes:
+    - "Embedded[2-4]$"
+  ignoreFields:
+    - "status$"
+    - "TypeMeta$"
+  customMarkers:
+    - name: "hidefromdoc"
+      target: type
+
+render:
+  kubernetesVersion: 1.25

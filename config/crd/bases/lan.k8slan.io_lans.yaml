@@ -40,27 +40,38 @@ spec:
             description: spec defines the desired state of LAN
             properties:
               bridge:
+                description: LAN bridge interface name
                 type: string
               defaultVxlanDev:
+                description: default VxLAN device name if not spcified in vxlanDevMap
                 type: string
               ns:
+                description: linux namespace name where LAN bridge, vxlan interfaces
+                  live in
                 type: string
               spokes:
+                description: A list of spoke name
                 items:
                   type: string
                 type: array
               vni:
+                description: VxLAN VNI
                 format: int32
                 type: integer
               vxlan:
+                description: LAN VxLAN interface name
                 type: string
               vxlanDevMap:
                 additionalProperties:
                   type: string
+                description: a map between k8s worker name and its interface name
+                  used as the LAN VxLAN interface's device
                 type: object
               vxlanGrp:
+                description: VxLAN multicast group address
                 type: string
               vxlanPort:
+                description: VxLAN UDP port
                 format: int32
                 type: integer
             required:

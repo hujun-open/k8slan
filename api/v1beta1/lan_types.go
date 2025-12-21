@@ -40,22 +40,31 @@ type LANSpec struct {
 	// The following markers will use OpenAPI v3 schema to validate the value
 	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
 
+	//linux namespace name where LAN bridge, vxlan interfaces live in
 	// +required
 	NS *string `json:"ns,omitempty"`
+	//LAN bridge interface name
 	// +required
 	BridgeName *string `json:"bridge,omitempty"`
+	//LAN VxLAN interface name
 	// +required
 	VxLANName *string `json:"vxlan,omitempty"`
+	//VxLAN VNI
 	// +required
 	VNI *int32 `json:"vni,omitempty"`
+	//VxLAN multicast group address
 	// +required
 	VxLANGrp *string `json:"vxlanGrp,omitempty"`
+	//default VxLAN device name if not spcified in vxlanDevMap
 	// +optional
 	DefaultVxDev string `json:"defaultVxlanDev,omitempty"`
+	//a map between k8s worker name and its interface name used as the LAN VxLAN interface's device
 	// +optional
 	VxDevMap map[string]string `json:"vxlanDevMap,omitempty"`
+	//VxLAN UDP port
 	// +optional
 	VxPort *int32 `json:"vxlanPort,omitempty"`
+	//A list of spoke name
 	// +required
 	SpokeList []string `json:"spokes,omitempty"`
 }

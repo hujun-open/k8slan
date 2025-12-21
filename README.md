@@ -85,6 +85,8 @@ This installs k8slan in the namespace `k8slan-system`. change the namespace in t
     - a deployment: k8slan-controller-manager 
     - a daemonset: k8slan-ds (require privilage)
 
+## API
+see [docs](./docs/api.md)
 
 ## Usage
 1. For each virtual LAN, create a LAN CR

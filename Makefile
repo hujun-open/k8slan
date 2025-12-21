@@ -44,6 +44,10 @@ help: ## Display this help.
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	go install github.com/elastic/crd-ref-docs@v0.2.0
+	mkdir -p docs
+	~/go/bin/crd-ref-docs --max-depth 99 --source-path ./api/v1beta1/ --renderer=markdown --config crd-ref-docs_config.yaml --output-path=./docs/api.md
+
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -184,6 +188,14 @@ deploymanifests: generate manifests kustomize  ## Deploy controller to the K8s c
 .PHONY: undeploy
 undeploy: kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/default | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
+
+
+.PHONY: api-docs
+api-docs: ## generate api docs
+	go install github.com/elastic/crd-ref-docs@v0.2.0
+	- mkdir docs
+	~/go/bin/crd-ref-docs --max-depth 99 --source-path ./api/v1beta1/ --renderer=markdown --config crd-ref-docs_config.yaml --output-path=./docs/api.md
+
 
 ##@ Dependencies
 
