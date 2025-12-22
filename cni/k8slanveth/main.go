@@ -31,6 +31,7 @@ import (
 	"github.com/containernetworking/plugins/pkg/ns"
 	bv "github.com/containernetworking/plugins/pkg/utils/buildversion"
 	"github.com/containernetworking/plugins/pkg/utils/sysctl"
+	"github.com/safchain/ethtool"
 	"github.com/vishvananda/netlink"
 )
 
@@ -42,8 +43,9 @@ type PluginConf struct {
 	// to more easily parse standard fields like Name, Type, CNIVersion,
 	// and PrevResult.
 	types.NetConf
-	VethName  string `json:"veth"`
-	EnableDad bool   `json:"enableDad"`
+	VethName      string `json:"veth"`
+	EnableDad     bool   `json:"enableDad"`
+	TxChecksumOff bool   `json:"disableTxChecksum"`
 }
 
 // MacEnvArgs represents CNI_ARGS
@@ -76,6 +78,19 @@ func parseConfig(stdin []byte, envArgs string) (*PluginConf, error) {
 	return &conf, nil
 }
 
+func turnOffIPTxChecksum(ifname string) error {
+	eth, err := ethtool.NewEthtool()
+	if err != nil {
+		return fmt.Errorf("Failed to initialize ethtool: %w", err)
+	}
+	defer eth.Close()
+	targetFeature := "tx-checksum-ip-generic"
+	changeRequest := map[string]bool{
+		targetFeature: false,
+	}
+	return eth.Change(ifname, changeRequest)
+}
+
 // cmdAdd is called for ADD requests
 func cmdAdd(args *skel.CmdArgs) error {
 	success := false
@@ -91,6 +106,13 @@ func cmdAdd(args *skel.CmdArgs) error {
 	vlink, err := netlink.LinkByName(conf.VethName)
 	if err != nil {
 		return fmt.Errorf("failed to locate veth interface %v, %w", conf.VethName, err)
+	}
+	//turn of TX IP checksum on the peer interface, this is needed for SRSIM
+	if conf.TxChecksumOff {
+		err = turnOffIPTxChecksum(vlink.(*netlink.Veth).PeerName)
+		if err != nil {
+			return fmt.Errorf("failed to turn of tx-checksum-ip-generic on interface %v, %w", vlink.(*netlink.Veth).PeerName, err)
+		}
 	}
 	//move interface to pod NS
 	err = netlink.LinkSetNsFd(vlink, int(podNS.Fd()))
