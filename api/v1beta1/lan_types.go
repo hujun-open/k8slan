@@ -214,6 +214,7 @@ func (lanspec *LANSpec) GetNADs(ns string) []*ncv1.NetworkAttachmentDefinition {
       "cniVersion": "0.3.1",
       "name": "%v",
       "type": "k8slanveth",
+	  "disableTxChecksum": true,
 	  "veth": "%v"
     }`
 	genNAD := func(name, ns string) *ncv1.NetworkAttachmentDefinition {
