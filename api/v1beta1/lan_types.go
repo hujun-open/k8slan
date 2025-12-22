@@ -19,6 +19,7 @@ package v1beta1
 import (
 	"fmt"
 	"net/netip"
+	"path/filepath"
 	"strings"
 
 	ncv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
@@ -204,7 +205,11 @@ func GetSpokeNameFromResourceName(resName string) string {
 	return "badname"
 }
 
-func (lanspec *LANSpec) GetNADs(ns string) []*ncv1.NetworkAttachmentDefinition {
+const (
+	realK8sLANNetNSFolder = "/run/k8slan/netns"
+)
+
+func (lanspec *LANSpec) GetNADs(lanName, ns string) []*ncv1.NetworkAttachmentDefinition {
 	macvtapTemplate := `{
       "cniVersion": "0.3.1",
       "name": "%v",
@@ -215,12 +220,13 @@ func (lanspec *LANSpec) GetNADs(ns string) []*ncv1.NetworkAttachmentDefinition {
       "name": "%v",
       "type": "k8slanveth",
 	  "disableTxChecksum": true,
-	  "veth": "%v"
+	  "veth": "%v",
+	  "peerNS": "%v"
     }`
 	genNAD := func(name, ns string) *ncv1.NetworkAttachmentDefinition {
 		cfgStr := fmt.Sprintf(macvtapTemplate, name)
 		if !IsMACVTAPResource(name) {
-			cfgStr = fmt.Sprintf(vethTempalte, name, GetSpokeNameFromResourceName(name))
+			cfgStr = fmt.Sprintf(vethTempalte, name, GetSpokeNameFromResourceName(name), filepath.Join(realK8sLANNetNSFolder, lanName))
 		}
 		return &ncv1.NetworkAttachmentDefinition{
 			TypeMeta: metav1.TypeMeta{

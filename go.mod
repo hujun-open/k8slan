@@ -9,6 +9,7 @@ require (
 	github.com/kubevirt/device-plugin-manager v1.19.5
 	github.com/onsi/ginkgo/v2 v2.27.2
 	github.com/onsi/gomega v1.38.3
+	github.com/safchain/ethtool v0.6.2
 	github.com/vishvananda/netlink v1.3.1
 	golang.org/x/net v0.48.0
 	golang.org/x/sys v0.39.0
@@ -62,7 +63,6 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
-	github.com/safchain/ethtool v0.6.2 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect

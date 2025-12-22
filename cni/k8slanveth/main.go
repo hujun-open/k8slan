@@ -46,6 +46,7 @@ type PluginConf struct {
 	VethName      string `json:"veth"`
 	EnableDad     bool   `json:"enableDad"`
 	TxChecksumOff bool   `json:"disableTxChecksum"`
+	PeerNS        string `json:"peerNS"`
 }
 
 // MacEnvArgs represents CNI_ARGS
@@ -109,10 +110,25 @@ func cmdAdd(args *skel.CmdArgs) error {
 	}
 	//turn of TX IP checksum on the peer interface, this is needed for SRSIM
 	if conf.TxChecksumOff {
-		err = turnOffIPTxChecksum(vlink.(*netlink.Veth).PeerName)
+		peerNS, err := ns.GetNS(conf.PeerNS)
 		if err != nil {
-			return fmt.Errorf("failed to turn of tx-checksum-ip-generic on interface %v, %w", vlink.(*netlink.Veth).PeerName, err)
+			return fmt.Errorf("failed to get peer NS at %v, %w", conf.PeerNS, err)
 		}
+		err = peerNS.Do(func(_ ns.NetNS) error {
+			peerLink, err := netlink.LinkByIndex(vlink.Attrs().ParentIndex)
+			if err != nil {
+				return fmt.Errorf("failed to locate peer link in the peer ns, %w", err)
+			}
+			err = turnOffIPTxChecksum(peerLink.Attrs().Name)
+			if err != nil {
+				return fmt.Errorf("failed to turn of tx-checksum-ip-generic on interface %v, %w", peerLink.Attrs().Name, err)
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+
 	}
 	//move interface to pod NS
 	err = netlink.LinkSetNsFd(vlink, int(podNS.Fd()))

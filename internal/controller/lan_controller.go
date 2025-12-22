@@ -56,7 +56,7 @@ func (r *LANReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	if err := r.Get(ctx, req.NamespacedName, lan); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	nads := lan.Spec.GetNADs(req.Namespace)
+	nads := lan.Spec.GetNADs(lan.Name, req.Namespace)
 	existingNads := new(ncv1.NetworkAttachmentDefinitionList)
 	if err := r.List(ctx, existingNads); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
