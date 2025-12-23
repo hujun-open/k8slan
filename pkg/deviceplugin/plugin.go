@@ -3,6 +3,7 @@ package deviceplugin
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -32,10 +33,11 @@ type macvtapDevicePlugin struct {
 	Mode         string
 	stopWatcher  chan struct{}
 	dummyMACVTAP bool
+	lister       *macvtapLister
 	pluginapi.UnimplementedDevicePluginServer
 }
 
-func NewMacvtapDevicePlugin(name string, lan *v1beta1.LANSpec) *macvtapDevicePlugin {
+func NewMacvtapDevicePlugin(name string, lan *v1beta1.LANSpec, lister *macvtapLister) *macvtapDevicePlugin {
 	hname, err := os.Hostname()
 	if err != nil {
 		panic(err)
@@ -46,6 +48,7 @@ func NewMacvtapDevicePlugin(name string, lan *v1beta1.LANSpec) *macvtapDevicePlu
 		lan:          lan,
 		stopWatcher:  make(chan struct{}),
 		hostName:     hname,
+		lister:       lister,
 		dummyMACVTAP: strings.HasPrefix(name, v1beta1.VETHPreffix),
 	}
 }
@@ -80,8 +83,32 @@ func (mdp *macvtapDevicePlugin) ListAndWatch(e *pluginapi.Empty, s pluginapi.Dev
 	}
 }
 
+func (mdp *macvtapDevicePlugin) clearUnused() error {
+	mdp.lister.ExistingNSListLock.RLock()
+	crNSList := slices.Clone(mdp.lister.ExistingNSList)
+	mdp.lister.ExistingNSListLock.RUnlock()
+	existList, err := interfaces.GetExistingNSPaths()
+	if err != nil {
+		return fmt.Errorf("failed to list existing NS path, %w", err)
+	}
+	for _, existOne := range existList {
+		if !slices.Contains(crNSList, existOne) {
+			err = interfaces.DeleteNamed(existOne)
+			if err != nil {
+				return fmt.Errorf("failed to create stale ns %v, %w", existOne, err)
+			}
+		}
+	}
+	return nil
+}
+
 func (mdp *macvtapDevicePlugin) Allocate(ctx context.Context, r *pluginapi.AllocateRequest) (*pluginapi.AllocateResponse, error) {
 	var response pluginapi.AllocateResponse
+	//clear stale ns
+	err := mdp.clearUnused()
+	if err != nil {
+		return nil, err
+	}
 	for _, req := range r.ContainerRequests {
 		var devices []*pluginapi.DeviceSpec
 		for _, macVtapName := range req.DevicesIds {

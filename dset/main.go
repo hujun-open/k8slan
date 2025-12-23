@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 
@@ -13,7 +12,6 @@ import (
 	"github.com/hujun-open/k8slan/pkg/interfaces"
 	"github.com/kubevirt/device-plugin-manager/pkg/dpm"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -28,22 +26,23 @@ import (
 type LANReconciler struct {
 	client.Client
 	hostName     string
-	DPAddChan    chan *v1beta1.LANSpec
+	DPAddChan    chan k8slan.AddRequest
 	DPRemoveChan chan *v1beta1.LANSpec
 }
 
 // +kubebuilder:rbac:groups=lan.k8slan.io,resources=lans,verbs=get;list;watch;update
 
-func makeFinalizerPatch(in v1beta1.LAN, fin string) client.Patch {
-	p := &v1beta1.LAN{}
-	p.APIVersion = in.APIVersion
-	p.Kind = in.Kind
-	p.Name = in.Name
-	p.Namespace = in.Namespace
-	p.Finalizers = append(p.Finalizers, fin)
-	patchBytes, _ := json.Marshal(p)
-	return client.RawPatch(types.MergePatchType, patchBytes)
-
+func (r *LANReconciler) getExistingNSNames(ctx context.Context) ([]string, error) {
+	lans := k8slan.LANList{}
+	err := r.Client.List(ctx, &lans)
+	if err != nil {
+		return nil, err
+	}
+	rlist := []string{}
+	for _, lan := range lans.Items {
+		rlist = append(rlist, *lan.Spec.NS)
+	}
+	return rlist, nil
 }
 
 func (r *LANReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
@@ -101,7 +100,11 @@ func (r *LANReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 	// 	return ctrl.Result{}, nil
 	// }
 	spec := lan.Spec
-	r.DPAddChan <- &spec
+	nslist, err := r.getExistingNSNames(ctx)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	r.DPAddChan <- k8slan.AddRequest{NewLan: &spec, ExistingNSNames: nslist}
 	log.Info("lan created")
 	return ctrl.Result{}, nil
 }
@@ -140,7 +143,7 @@ func main() {
 	reconciler := &LANReconciler{
 		Client:       mgr.GetClient(),
 		hostName:     hostName,
-		DPAddChan:    make(chan *k8slan.LANSpec, chanDepth),
+		DPAddChan:    make(chan k8slan.AddRequest, chanDepth),
 		DPRemoveChan: make(chan *k8slan.LANSpec, chanDepth),
 	}
 	if err = reconciler.SetupWithManager(mgr); err != nil {

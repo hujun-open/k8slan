@@ -27,6 +27,20 @@ import (
 	"github.com/containernetworking/plugins/pkg/ns"
 )
 
+func GetExistingNSPaths() ([]string, error) {
+	entries, err := os.ReadDir(getNsRunDir())
+	if err != nil {
+		return nil, err
+	}
+	r := []string{}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			r = append(r, entry.Name())
+		}
+	}
+	return r, nil
+}
+
 func getNsRunDir() string {
 	// xdgRuntimeDir := os.Getenv("XDG_RUNTIME_DIR")
 

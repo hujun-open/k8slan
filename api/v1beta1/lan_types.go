@@ -251,3 +251,8 @@ func (lanspec *LANSpec) GetNADs(lanName, ns string) []*ncv1.NetworkAttachmentDef
 	}
 	return r
 }
+
+type AddRequest struct {
+	NewLan          *LANSpec
+	ExistingNSNames []string
+}

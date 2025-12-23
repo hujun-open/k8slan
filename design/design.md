@@ -33,11 +33,14 @@ creation work flow is following:
     - one for macvtap attachement, with prefix `k8slan-mac-`
     - one for veth attachement, with prefix `k8slan-veth-`
 4. the LAN DS adds host specific finalizer and send the CR to device plugin via golang channel
+    - the DS also send a list ns name of all existing CRs to the device plugin
 5. device plugin advertise the spoke to k8s, so that every worker has the spoke resrouce available 
     - for each spoke, DP advertise two resources, one for macvtap, one for veth, same as #3
+    - device plugin also update its copy of list ns names of all existing CRs
 6. k8s schedule the pod to one of workers (since every worker will advetise the spoke resource)
 7. kubelet on the k8s chosen worker invoke device plugin's `Allocate` method, which will creates the namespce, bridge, vxlan, veth and macvtap interfaces
     - in case of veth attachment, `Allocate` will create a dummy interface, and the macvtap is based on the dummy interface, these two interfaces are not actually used by pod, only to satisify the k8s Deivce plugin expectation of having a /dev/tapxxx;
+        - device plugin will also remove any stale ns that appear in the ns folder but doesn't appear in the lsit of ns name of all existing CRs
 8. pod is created, kubelet then invoke CNI plugin:
     - in case of macvtap attachment, macvtap CNI plugin uses the macvtap interface created in step#7
     - in case of veth attachment, k8slanveth CNI plugin move the veth interface created in step#7 into pod NS 
