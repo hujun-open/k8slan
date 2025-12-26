@@ -100,3 +100,25 @@ architecture-beta
 
 ```
 
+### names
+Following names are related:
+1. spoke name: user specified
+2. resource name of the spoke: should avoid duplication and **reuse** between LANs
+5. device ID that DP generates and kubelet used in `Allocate` call
+3. veth inteface name of the spoke: has 15 char limitation, unique across all spoke and LANs
+4. macvtap interface name: has 15 char limitation 
+
+
+
+pinciple: 
+ - resource name must be derived from spoke name and LAN meta data to avoid duplication and reuse
+ - device id is not same as resource name, device is not user visible
+ - device id must be same as macvtap interface, since macvatp CNI plugin rely on that
+
+derive rules:
+- resource name == VETHPreffix/MACVTAPPEFIX+LAN_name+spokename 
+- device id == spokename + "M"/"V"+ 0
+- veth name == spokename
+- macvtap name == device id
+
+

@@ -14,8 +14,6 @@ Package v1beta1 contains API Schema definitions for the lan v1beta1 API group.
 
 
 
-
-
 #### LAN
 
 
@@ -62,7 +60,6 @@ LANSpec defines the desired state of LAN
 
 
 _Appears in:_
-- [AddRequest](#addrequest)
 - [LAN](#lan)
 
 | Field | Description | Default | Validation |

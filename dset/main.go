@@ -27,7 +27,7 @@ type LANReconciler struct {
 	client.Client
 	hostName     string
 	DPAddChan    chan k8slan.AddRequest
-	DPRemoveChan chan *v1beta1.LANSpec
+	DPRemoveChan chan *v1beta1.LAN
 }
 
 // +kubebuilder:rbac:groups=lan.k8slan.io,resources=lans,verbs=get;list;watch;update
@@ -77,8 +77,7 @@ func (r *LANReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 			// our finalizer is present, so let's handle any external dependency
 			log.Info("removing lan", "name", lan.Name)
 			interfaces.Remove(*lan.Spec.NS)
-			spec := lan.Spec
-			r.DPRemoveChan <- &spec
+			r.DPRemoveChan <- lan
 			// remove our finalizer from the list and update it.
 			// patch := client.MergeFrom(lan.DeepCopy())
 			controllerutil.RemoveFinalizer(lan, myFinalizerName)
@@ -99,12 +98,11 @@ func (r *LANReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 	// 	log.Error(err, "failed to ensure lan")
 	// 	return ctrl.Result{}, nil
 	// }
-	spec := lan.Spec
 	nslist, err := r.getExistingNSNames(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	r.DPAddChan <- k8slan.AddRequest{NewLan: &spec, ExistingNSNames: nslist}
+	r.DPAddChan <- k8slan.AddRequest{NewLan: lan, ExistingNSNames: nslist}
 	log.Info("lan created")
 	return ctrl.Result{}, nil
 }
@@ -144,7 +142,7 @@ func main() {
 		Client:       mgr.GetClient(),
 		hostName:     hostName,
 		DPAddChan:    make(chan k8slan.AddRequest, chanDepth),
-		DPRemoveChan: make(chan *k8slan.LANSpec, chanDepth),
+		DPRemoveChan: make(chan *k8slan.LAN, chanDepth),
 	}
 	if err = reconciler.SetupWithManager(mgr); err != nil {
 		fmt.Fprintf(os.Stderr, "unable to create controller: %v\n", err)

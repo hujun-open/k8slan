@@ -14,7 +14,7 @@ import (
 )
 
 // ensure creates all objs to match lan's spec
-func Ensure(macName, spokeName string, lan *v1beta1.LANSpec, hostname, macvtapMode string, dummyMacvtap bool) (int, error) {
+func Ensure(macName, vethName string, lan *v1beta1.LANSpec, hostname, macvtapMode string, dummyMacvtap bool) (int, error) {
 	log := ctrl.Log.WithName("deviceplugin")
 	var err error
 	var lanNS ns.NetNS
@@ -153,12 +153,12 @@ func Ensure(macName, spokeName string, lan *v1beta1.LANSpec, hostname, macvtapMo
 		// }
 		//creating veth interfaces
 		//remove existing vlan interface with same name
-		peerName := getPeerVethName(spokeName)
+		peerName := getPeerVethName(vethName)
 		LinkDelete(peerName)
 		time.Sleep(time.Second)
 		la := netlink.LinkAttrs{
 			ParentIndex: br.Attrs().Index,
-			Name:        spokeName,
+			Name:        vethName,
 			TxQLen:      -1,
 			MTU:         mtu,
 		}
@@ -168,10 +168,10 @@ func Ensure(macName, spokeName string, lan *v1beta1.LANSpec, hostname, macvtapMo
 			LinkAttrs: la,
 		}
 		if err := netlink.LinkAdd(vlink); err != nil {
-			return fmt.Errorf("failed to create veth interface %v: %v", spokeName, err)
+			return fmt.Errorf("failed to create veth interface %v: %v", vethName, err)
 		}
 		if err := netlink.LinkSetUp(vlink); err != nil {
-			return fmt.Errorf("failed to veth %v up, %w", spokeName, err)
+			return fmt.Errorf("failed to veth %v up, %w", vethName, err)
 		}
 		peerLink, err := netlink.LinkByName(peerName)
 		if err != nil {
@@ -229,17 +229,17 @@ func Ensure(macName, spokeName string, lan *v1beta1.LANSpec, hostname, macvtapMo
 	}
 
 	//bring up spoke link in host ns
-	vlink, err := netlink.LinkByName(spokeName)
+	vlink, err := netlink.LinkByName(vethName)
 	if err != nil {
-		return -1, fmt.Errorf("failed to get the created spoke link %v in host ns, %w", spokeName, err)
+		return -1, fmt.Errorf("failed to get the created spoke link %v in host ns, %w", vethName, err)
 	}
 	err = netlink.LinkSetUp(vlink)
 	if err != nil {
-		return -1, fmt.Errorf("failed to bring up spoke link %v in host ns, %w", spokeName, err)
+		return -1, fmt.Errorf("failed to bring up spoke link %v in host ns, %w", vethName, err)
 	}
 	//create macvtap interface
 	if !dummyMacvtap {
-		return RecreateMacvtap(macName, spokeName, macvtapMode)
+		return RecreateMacvtap(macName, vethName, macvtapMode)
 	} else {
 		//create dummy one
 		dummyLink, err := netlink.LinkByName(dummyIfName)

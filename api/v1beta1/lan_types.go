@@ -183,26 +183,35 @@ func IsMACVTAPResource(resName string) bool {
 	return strings.HasPrefix(resName, MACVTAPPreffix)
 }
 
-func GetDPResouceName(name string, isDummyMac bool) string {
+func GetDPResouceName(lan, spoke string, isDummyMac bool) string {
 	if isDummyMac {
-		return VETHPreffix + name
+		return VETHPreffix + lan + "-" + spoke
 	}
-	return MACVTAPPreffix + name
+	return MACVTAPPreffix + lan + "-" + spoke
 }
 
-func GetNADName(name string, isVeth bool) string {
-	return GetDPResouceName(name, isVeth)
-}
-
-func GetSpokeNameFromResourceName(resName string) string {
+func GetSpokeNameFromResourceName(resName, lan string) string {
 	switch {
 	case strings.HasPrefix(resName, VETHPreffix):
-		return strings.ReplaceAll(resName, VETHPreffix, "")
+		return strings.TrimPrefix(resName, VETHPreffix+lan+"-")
 	case strings.HasPrefix(resName, MACVTAPPreffix):
-		return strings.ReplaceAll(resName, MACVTAPPreffix, "")
+		return strings.TrimPrefix(resName, MACVTAPPreffix+lan+"-")
 
 	}
 	return "badname"
+}
+
+func GetMACVTAPInterfaceName(resName, lan string) string {
+	spoke := GetSpokeNameFromResourceName(resName, lan)
+	if IsMACVTAPResource(resName) {
+		return spoke + "M"
+	}
+	return spoke + "V"
+
+}
+
+func GetNADName(lan, spoke string, isVeth bool) string {
+	return GetDPResouceName(lan, spoke, isVeth)
 }
 
 const (
@@ -223,10 +232,10 @@ func (lanspec *LANSpec) GetNADs(lanName, ns string) []*ncv1.NetworkAttachmentDef
 	  "veth": "%v",
 	  "peerNS": "%v"
     }`
-	genNAD := func(name, ns string) *ncv1.NetworkAttachmentDefinition {
-		cfgStr := fmt.Sprintf(macvtapTemplate, name)
-		if !IsMACVTAPResource(name) {
-			cfgStr = fmt.Sprintf(vethTempalte, name, GetSpokeNameFromResourceName(name), filepath.Join(realK8sLANNetNSFolder, lanName))
+	genNAD := func(resName, ns string) *ncv1.NetworkAttachmentDefinition {
+		cfgStr := fmt.Sprintf(macvtapTemplate, resName)
+		if !IsMACVTAPResource(resName) {
+			cfgStr = fmt.Sprintf(vethTempalte, resName, GetSpokeNameFromResourceName(resName, lanName), filepath.Join(realK8sLANNetNSFolder, lanName))
 		}
 		return &ncv1.NetworkAttachmentDefinition{
 			TypeMeta: metav1.TypeMeta{
@@ -234,10 +243,10 @@ func (lanspec *LANSpec) GetNADs(lanName, ns string) []*ncv1.NetworkAttachmentDef
 				Kind:       "NetworkAttachmentDefinition",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
+				Name:      resName,
 				Namespace: ns,
 				Annotations: map[string]string{
-					"k8s.v1.cni.cncf.io/resourceName": fmt.Sprintf("%v/%v", ResourceNamespace, name)},
+					"k8s.v1.cni.cncf.io/resourceName": fmt.Sprintf("%v/%v", ResourceNamespace, resName)},
 			},
 			Spec: ncv1.NetworkAttachmentDefinitionSpec{
 				Config: cfgStr,
@@ -246,13 +255,13 @@ func (lanspec *LANSpec) GetNADs(lanName, ns string) []*ncv1.NetworkAttachmentDef
 	}
 	r := []*ncv1.NetworkAttachmentDefinition{}
 	for _, spoke := range lanspec.SpokeList {
-		r = append(r, genNAD(GetDPResouceName(spoke, true), ns))
-		r = append(r, genNAD(GetDPResouceName(spoke, false), ns))
+		r = append(r, genNAD(GetDPResouceName(lanName, spoke, true), ns))
+		r = append(r, genNAD(GetDPResouceName(lanName, spoke, false), ns))
 	}
 	return r
 }
 
 type AddRequest struct {
-	NewLan          *LANSpec
+	NewLan          *LAN
 	ExistingNSNames []string
 }

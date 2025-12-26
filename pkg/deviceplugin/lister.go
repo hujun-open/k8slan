@@ -11,11 +11,11 @@ import (
 )
 
 type macvtapLister struct {
-	DeviceList map[string]*v1beta1.LANSpec //key is the vlan name in the LAN
+	DeviceList map[string]*v1beta1.LAN //key is the res name in the LAN
 	// lock   *sync.RWMutex
 	// NetNsPath is the path to the network namespace the lister operates in.
 	AddChan            chan v1beta1.AddRequest
-	RemovChan          chan *v1beta1.LANSpec
+	RemovChan          chan *v1beta1.LAN
 	ExistingNSList     []string
 	ExistingNSListLock *sync.RWMutex
 }
@@ -28,11 +28,11 @@ func (ml *macvtapLister) getCurrentPlugins() dpm.PluginNameList {
 	return r
 }
 
-func NewMacvtapLister(netNsPath string, add chan v1beta1.AddRequest, remove chan *v1beta1.LANSpec) *macvtapLister {
+func NewMacvtapLister(netNsPath string, add chan v1beta1.AddRequest, remove chan *v1beta1.LAN) *macvtapLister {
 	return &macvtapLister{
 		AddChan:            add,
 		RemovChan:          remove,
-		DeviceList:         make(map[string]*v1beta1.LANSpec),
+		DeviceList:         make(map[string]*v1beta1.LAN),
 		ExistingNSListLock: new(sync.RWMutex),
 	}
 }
@@ -55,16 +55,16 @@ func (ml *macvtapLister) Discover(pluginListCh chan dpm.PluginNameList) {
 			ml.ExistingNSListLock.Lock()
 			ml.ExistingNSList = req.ExistingNSNames
 			ml.ExistingNSListLock.Unlock()
-			for _, spokeName := range lan.SpokeList {
-				ml.DeviceList[v1beta1.GetDPResouceName(spokeName, true)] = lan
-				ml.DeviceList[v1beta1.GetDPResouceName(spokeName, false)] = lan
+			for _, spokeName := range lan.Spec.SpokeList {
+				ml.DeviceList[v1beta1.GetDPResouceName(lan.Name, spokeName, true)] = lan
+				ml.DeviceList[v1beta1.GetDPResouceName(lan.Name, spokeName, false)] = lan
 			}
 			ml.report(pluginListCh)
 
 		case lan := <-ml.RemovChan:
-			for _, vlanName := range lan.SpokeList {
-				delete(ml.DeviceList, v1beta1.GetDPResouceName(vlanName, true))
-				delete(ml.DeviceList, v1beta1.GetDPResouceName(vlanName, false))
+			for _, spokeName := range lan.Spec.SpokeList {
+				delete(ml.DeviceList, v1beta1.GetDPResouceName(lan.Name, spokeName, true))
+				delete(ml.DeviceList, v1beta1.GetDPResouceName(lan.Name, spokeName, false))
 			}
 			ml.report(pluginListCh)
 

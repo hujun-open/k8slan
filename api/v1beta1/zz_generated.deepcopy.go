@@ -30,7 +30,7 @@ func (in *AddRequest) DeepCopyInto(out *AddRequest) {
 	*out = *in
 	if in.NewLan != nil {
 		in, out := &in.NewLan, &out.NewLan
-		*out = new(LANSpec)
+		*out = new(LAN)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.ExistingNSNames != nil {

@@ -26,9 +26,9 @@ const (
 )
 
 type macvtapDevicePlugin struct {
-	Name         string
+	Name         string //spoke name
 	hostName     string
-	lan          *v1beta1.LANSpec
+	lan          *v1beta1.LAN
 	Capacity     int
 	Mode         string
 	stopWatcher  chan struct{}
@@ -37,13 +37,13 @@ type macvtapDevicePlugin struct {
 	pluginapi.UnimplementedDevicePluginServer
 }
 
-func NewMacvtapDevicePlugin(name string, lan *v1beta1.LANSpec, lister *macvtapLister) *macvtapDevicePlugin {
+func NewMacvtapDevicePlugin(name string, lan *v1beta1.LAN, lister *macvtapLister) *macvtapDevicePlugin {
 	hname, err := os.Hostname()
 	if err != nil {
 		panic(err)
 	}
 	return &macvtapDevicePlugin{
-		Name:         v1beta1.GetSpokeNameFromResourceName(name),
+		Name:         v1beta1.GetSpokeNameFromResourceName(name, lan.Name),
 		Mode:         DefaultMode,
 		lan:          lan,
 		stopWatcher:  make(chan struct{}),
@@ -111,7 +111,7 @@ func (mdp *macvtapDevicePlugin) Allocate(ctx context.Context, r *pluginapi.Alloc
 	}
 	for _, req := range r.ContainerRequests {
 		var devices []*pluginapi.DeviceSpec
-		for _, macVtapName := range req.DevicesIds {
+		for _, devID := range req.DevicesIds {
 
 			dev := new(pluginapi.DeviceSpec)
 
@@ -126,7 +126,7 @@ func (mdp *macvtapDevicePlugin) Allocate(ctx context.Context, r *pluginapi.Alloc
 			var index int
 			var err error
 			// index, err = util.RecreateMacvtap(name, mdp.LowerDevice, mdp.Mode)
-			index, err = interfaces.Ensure(macVtapName, mdp.Name, mdp.lan, mdp.hostName, mdp.Mode, mdp.dummyMACVTAP)
+			index, err = interfaces.Ensure(devID, mdp.Name, &mdp.lan.Spec, mdp.hostName, mdp.Mode, mdp.dummyMACVTAP)
 			if err != nil {
 				return nil, err
 			}
