@@ -71,11 +71,8 @@ Before installation, following are required:
 
 
 ### installation
-`kubectl apply -f https://github.com/hujun-open/k8slan/releases/download/<version>/all.yaml`
-
-e.g. 
-
-`kubectl apply -f https://github.com/hujun-open/k8slan/releases/download/v0.0.1/all.yaml`
+install the latest release:
+`kubectl apply -f https://github.com/hujun-open/k8slan/releases/latest/download/all.yaml`
 
 This installs k8slan in the namespace `k8slan-system`. change the namespace in the `all.yaml` if a different namespace is needed.
 
