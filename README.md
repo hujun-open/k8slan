@@ -66,6 +66,7 @@ Before installation, following are required:
 
 - IPv6 is enabled on each worker 
 - an interface used as vxlan underlying, this interface must be able to forward IPv6 multicast traffic to other workers; one simple option is a L2 network shared by all workers.
+    - note: Global unicast IPv6 address is not required on the interface, link-local address is enough
 - cert-manager
 - multus installed
 
