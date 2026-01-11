@@ -66,16 +66,14 @@ Before installation, following are required:
 
 - IPv6 is enabled on each worker 
 - an interface used as vxlan underlying, this interface must be able to forward IPv6 multicast traffic to other workers; one simple option is a L2 network shared by all workers.
+    - note: Global unicast IPv6 address is not required on the interface, link-local address is enough
 - cert-manager
 - multus installed
 
 
 ### installation
-`kubectl apply -f https://github.com/hujun-open/k8slan/releases/download/<version>/all.yaml`
-
-e.g. 
-
-`kubectl apply -f https://github.com/hujun-open/k8slan/releases/download/v0.0.1/all.yaml`
+install the latest release:
+`kubectl apply -f https://github.com/hujun-open/k8slan/releases/latest/download/all.yaml`
 
 This installs k8slan in the namespace `k8slan-system`. change the namespace in the `all.yaml` if a different namespace is needed.
 
