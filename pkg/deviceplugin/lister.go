@@ -48,10 +48,13 @@ func (ml *macvtapLister) report(pluginListCh chan dpm.PluginNameList) {
 }
 
 func (ml *macvtapLister) Discover(pluginListCh chan dpm.PluginNameList) {
+	log := ctrl.Log.WithName("Discover")
 	for {
 		select {
 		case req := <-ml.AddChan:
+
 			lan := req.NewLan
+			log.Info("got a new lan", "name", lan.Name)
 			ml.ExistingNSListLock.Lock()
 			ml.ExistingNSList = req.ExistingNSNames
 			ml.ExistingNSListLock.Unlock()
@@ -60,13 +63,16 @@ func (ml *macvtapLister) Discover(pluginListCh chan dpm.PluginNameList) {
 				ml.DeviceList[v1beta1.GetDPResouceName(lan.Name, spokeName, false)] = lan
 			}
 			ml.report(pluginListCh)
+			log.Info("report the new lan", "name", lan.Name)
 
 		case lan := <-ml.RemovChan:
+			log.Info("got a  lan to remove", "name", lan.Name)
 			for _, spokeName := range lan.Spec.SpokeList {
 				delete(ml.DeviceList, v1beta1.GetDPResouceName(lan.Name, spokeName, true))
 				delete(ml.DeviceList, v1beta1.GetDPResouceName(lan.Name, spokeName, false))
 			}
 			ml.report(pluginListCh)
+			log.Info("report new dev list after removal", "name", lan.Name)
 
 		}
 	}

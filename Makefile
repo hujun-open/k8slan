@@ -128,6 +128,11 @@ docker-build: build ## Build docker image with the manager.
 # 	cp -f bin/k8slanveth .
 	$(CONTAINER_TOOL) build -t ${IMG} .
 
+.PHONY: docker-build-local
+docker-build-local: build
+	$(CONTAINER_TOOL) build -f Dockerfile.nogo -t ${IMG} .
+
+
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
 	$(CONTAINER_TOOL) push ${IMG}

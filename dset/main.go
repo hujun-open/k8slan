@@ -44,6 +44,9 @@ func (r *LANReconciler) getExistingNSNames(ctx context.Context) ([]string, error
 	}
 	return rlist, nil
 }
+func (r *LANReconciler) myFinalizer() string {
+	return fmt.Sprintf("%v/%v", k8slan.FinalizerPrefix, r.hostName)
+}
 
 func (r *LANReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	log := ctrl.Log.WithValues("lan", req.NamespacedName)
@@ -53,7 +56,7 @@ func (r *LANReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 		log.Error(err, "unable to fetch LAN")
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
-	myFinalizerName := fmt.Sprintf("%v/%v", k8slan.FinalizerPrefix, r.hostName)
+	myFinalizerName := r.myFinalizer()
 	// fieldOwner := fmt.Sprintf("fieldowner.k8slan.io/%v", r.hostName)
 	if lan.ObjectMeta.DeletionTimestamp.IsZero() {
 		// The object is not being deleted, so if it does not have our finalizer,
@@ -69,6 +72,12 @@ func (r *LANReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 			if err := r.Update(ctx, lan); err != nil {
 				return ctrl.Result{}, err
 			}
+			nslist, err := r.getExistingNSNames(ctx)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			r.DPAddChan <- k8slan.AddRequest{NewLan: lan, ExistingNSNames: nslist}
+			log.Info("lan created")
 			return ctrl.Result{}, nil
 		}
 	} else {
@@ -93,23 +102,51 @@ func (r *LANReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 		// Stop reconciliation as the item is being deleted
 		return ctrl.Result{}, nil
 	}
-	// err := r.ensure(lan)
-	// if err != nil {
-	// 	log.Error(err, "failed to ensure lan")
-	// 	return ctrl.Result{}, nil
-	// }
-	nslist, err := r.getExistingNSNames(ctx)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	r.DPAddChan <- k8slan.AddRequest{NewLan: lan, ExistingNSNames: nslist}
-	log.Info("lan created")
+
 	return ctrl.Result{}, nil
 }
 
 func (r *LANReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&k8slan.LAN{}).
+		// // Add the event filter here
+		// WithEventFilter(predicate.Funcs{
+		// 	CreateFunc: func(e event.CreateEvent) bool {
+		// 		log := ctrl.Log.WithName("create evt func")
+		// 		log.Info("got create event")
+		// 		// Allow reconciliation when a CR is created
+		// 		return true
+		// 	},
+		// 	DeleteFunc: func(e event.DeleteEvent) bool {
+		// 		log := ctrl.Log.WithName("delete evt func")
+		// 		log.Info("got delete event")
+		// 		// Allow reconciliation when a CR is deleted
+		// 		return true
+		// 	},
+		// 	UpdateFunc: func(e event.UpdateEvent) bool {
+		// 		log := ctrl.Log.WithName("update evt func")
+		// 		// Block reconciliation for all updates except deletion
+		// 		if !e.ObjectNew.GetDeletionTimestamp().IsZero() {
+		// 			log.Info("new obj deleteion timestamp is not zero")
+		// 			return true
+		// 		}
+		// 		found := false
+		// 		for _, f := range e.ObjectNew.GetFinalizers() {
+		// 			if f == r.myFinalizer() {
+		// 				log.Info("find my finalizer proceed")
+		// 				found = true
+		// 				break
+		// 			}
+		// 		}
+		// 		return !found
+		// 	},
+		// 	GenericFunc: func(e event.GenericEvent) bool {
+		// 		// Usually safe to ignore generic events for this use case
+		// 		log := ctrl.Log.WithName("generic evt func")
+		// 		log.Info("got generic event")
+		// 		return false
+		// 	},
+		// }).
 		Complete(r)
 }
 
@@ -117,7 +154,7 @@ func (r *LANReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // Main Function
 // ============================================================================
 const (
-	chanDepth = 16
+	chanDepth = 4096
 )
 
 func main() {
