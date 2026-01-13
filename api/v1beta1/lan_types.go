@@ -17,6 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/netip"
 	"path/filepath"
@@ -210,53 +211,136 @@ func GetMACVTAPInterfaceName(resName, lan string) string {
 
 }
 
-func GetNADName(lan, spoke string, isVeth bool) string {
+func GetDefNADName(lan, spoke string, isVeth bool) string {
 	return GetDPResouceName(lan, spoke, isVeth)
+}
+func GetAddrNADName(lan, spoke string) string {
+	return GetDefNADName(lan, spoke, true) + "-withaddr"
 }
 
 const (
 	realK8sLANNetNSFolder = "/run/k8slan/netns"
 )
 
-func (lanspec *LANSpec) GetNADs(lanName, ns string) []*ncv1.NetworkAttachmentDefinition {
-	macvtapTemplate := `{
-      "cniVersion": "0.3.1",
-      "name": "%v",
-      "type": "macvtap"
-    }`
-	vethTempalte := `{
-      "cniVersion": "0.3.1",
-      "name": "%v",
-      "type": "k8slanveth",
-	  "disableTxChecksum": true,
-	  "veth": "%v",
-	  "peerNS": "%v"
-    }`
-	genNAD := func(resName, ns string) *ncv1.NetworkAttachmentDefinition {
-		cfgStr := fmt.Sprintf(macvtapTemplate, resName)
-		if !IsMACVTAPResource(resName) {
-			cfgStr = fmt.Sprintf(vethTempalte, resName, GetSpokeNameFromResourceName(resName, lanName), filepath.Join(realK8sLANNetNSFolder, lanName))
-		}
-		return &ncv1.NetworkAttachmentDefinition{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "k8s.cni.cncf.io/v1",
-				Kind:       "NetworkAttachmentDefinition",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      resName,
-				Namespace: ns,
-				Annotations: map[string]string{
-					"k8s.v1.cni.cncf.io/resourceName": fmt.Sprintf("%v/%v", ResourceNamespace, resName)},
-			},
-			Spec: ncv1.NetworkAttachmentDefinitionSpec{
-				Config: cfgStr,
-			},
-		}
+// +kubebuilder:object:generate=false
+// +kubebuilder:object:root=false
+type Route struct {
+	To  netip.Prefix `json:"to"`
+	Via netip.Addr   `json:"via"`
+}
+
+func GenNAD(lanName, spokeName, ns string, isVeth bool, addrs []netip.Prefix, routes []Route) *ncv1.NetworkAttachmentDefinition {
+	// macvtapTemplate := `{
+	//   "cniVersion": "0.3.1",
+	//   "name": "%v",
+	//   "type": "macvtap"
+	// }`
+	// vethTempalte := `{
+	//   "cniVersion": "0.3.1",
+	//   "name": "%v",
+	//   "type": "k8slanveth",
+	//   "addrs": %v,
+	//   "routes": %v,
+	//   "disableTxChecksum": true,
+	//   "veth": "%v",
+	//   "peerNS": "%v"
+	// }`
+	vethCNICfg := DefK8sLANVethPluginConf()
+
+	resName := GetDPResouceName(lanName, spokeName, isVeth)
+	// cfgStr := fmt.Sprintf(macvtapTemplate, resName)
+	// addrStr := ""
+	// routeStr := ""
+	nadName := GetDefNADName(lanName, spokeName, isVeth)
+	if addrs != nil && isVeth {
+		nadName = GetAddrNADName(lanName, spokeName)
 	}
+	macCNICfg := GetMACVTAPPluginConf(nadName)
+	cfgStr := ""
+	if !IsMACVTAPResource(resName) {
+		// cfgStr = fmt.Sprintf(vethTempalte, nadName, addrStr, routeStr, GetSpokeNameFromResourceName(resName, lanName), filepath.Join(realK8sLANNetNSFolder, lanName))
+		vethCNICfg.Name = nadName
+		vethCNICfg.VethName = GetSpokeNameFromResourceName(resName, lanName)
+		vethCNICfg.PeerNS = filepath.Join(realK8sLANNetNSFolder, lanName)
+		// if len(addrs) > 0 && isVeth {
+		// addrBuf, _ := json.Marshal(addrs)
+		// addrStr = string(addrBuf)
+		// rBuf, _ := json.Marshal(routes)
+		// routeStr = string(rBuf)
+		vethCNICfg.Addresses = addrs
+		vethCNICfg.Routes = routes
+		// cfgStr = fmt.Sprintf(vethTempalte, nadName, addrStr, routeStr, GetSpokeNameFromResourceName(resName, lanName), filepath.Join(realK8sLANNetNSFolder, lanName))
+		// }
+		buf, err := json.Marshal(*vethCNICfg)
+		if err != nil {
+			panic(err)
+		}
+		cfgStr = string(buf)
+	} else {
+		buf, err := json.Marshal(*macCNICfg)
+		if err != nil {
+			panic(err)
+		}
+		cfgStr = string(buf)
+	}
+
+	nad := &ncv1.NetworkAttachmentDefinition{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "k8s.cni.cncf.io/v1",
+			Kind:       "NetworkAttachmentDefinition",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      nadName,
+			Namespace: ns,
+			Annotations: map[string]string{
+				"k8s.v1.cni.cncf.io/resourceName": fmt.Sprintf("%v/%v", ResourceNamespace, resName)},
+		},
+		Spec: ncv1.NetworkAttachmentDefinitionSpec{
+			Config: cfgStr,
+		},
+	}
+	return nad
+}
+
+func (lanspec *LANSpec) GetNADs(lanName, ns string) []*ncv1.NetworkAttachmentDefinition {
+	// macvtapTemplate := `{
+	//   "cniVersion": "0.3.1",
+	//   "name": "%v",
+	//   "type": "macvtap"
+	// }`
+	// vethTempalte := `{
+	//   "cniVersion": "0.3.1",
+	//   "name": "%v",
+	//   "type": "k8slanveth",
+	//   "disableTxChecksum": true,
+	//   "veth": "%v",
+	//   "peerNS": "%v"
+	// }`
+	// genNAD := func(resName, ns string) *ncv1.NetworkAttachmentDefinition {
+	// 	cfgStr := fmt.Sprintf(macvtapTemplate, resName)
+	// 	if !IsMACVTAPResource(resName) {
+	// 		cfgStr = fmt.Sprintf(vethTempalte, resName, GetSpokeNameFromResourceName(resName, lanName), filepath.Join(realK8sLANNetNSFolder, lanName))
+	// 	}
+	// 	return &ncv1.NetworkAttachmentDefinition{
+	// 		TypeMeta: metav1.TypeMeta{
+	// 			APIVersion: "k8s.cni.cncf.io/v1",
+	// 			Kind:       "NetworkAttachmentDefinition",
+	// 		},
+	// 		ObjectMeta: metav1.ObjectMeta{
+	// 			Name:      resName,
+	// 			Namespace: ns,
+	// 			Annotations: map[string]string{
+	// 				"k8s.v1.cni.cncf.io/resourceName": fmt.Sprintf("%v/%v", ResourceNamespace, resName)},
+	// 		},
+	// 		Spec: ncv1.NetworkAttachmentDefinitionSpec{
+	// 			Config: cfgStr,
+	// 		},
+	// 	}
+	// }
 	r := []*ncv1.NetworkAttachmentDefinition{}
 	for _, spoke := range lanspec.SpokeList {
-		r = append(r, genNAD(GetDPResouceName(lanName, spoke, true), ns))
-		r = append(r, genNAD(GetDPResouceName(lanName, spoke, false), ns))
+		r = append(r, GenNAD(lanName, spoke, ns, true, nil, nil))
+		r = append(r, GenNAD(lanName, spoke, ns, false, nil, nil))
 	}
 	return r
 }

@@ -5,6 +5,9 @@ processor:
   ignoreTypes:
     - "Embedded[2-4]$"
     - "AddRequest"
+    - '\bK8sLANVethPluginConf\b'
+    - '\bMACVTAPPluginConf\b'
+    - '\bRoute\b'
   ignoreFields:
     - "status$"
     - "TypeMeta$"

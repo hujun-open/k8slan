@@ -20,8 +20,8 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
+	"net"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
@@ -30,7 +30,7 @@ import (
 	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
 	bv "github.com/containernetworking/plugins/pkg/utils/buildversion"
-	"github.com/containernetworking/plugins/pkg/utils/sysctl"
+	"github.com/hujun-open/k8slan/api/v1beta1"
 	"github.com/safchain/ethtool"
 	"github.com/vishvananda/netlink"
 )
@@ -38,16 +38,18 @@ import (
 // PluginConf is whatever you expect your configuration json to be. This is whatever
 // is passed in on stdin. Your plugin may wish to expose its functionality via
 // runtime args, see CONVENTIONS.md in the CNI spec.
-type PluginConf struct {
-	// This embeds the standard NetConf structure which allows your plugin
-	// to more easily parse standard fields like Name, Type, CNIVersion,
-	// and PrevResult.
-	types.NetConf
-	VethName      string `json:"veth"`
-	EnableDad     bool   `json:"enableDad"`
-	TxChecksumOff bool   `json:"disableTxChecksum"`
-	PeerNS        string `json:"peerNS"`
-}
+// type PluginConf struct {
+// 	// This embeds the standard NetConf structure which allows your plugin
+// 	// to more easily parse standard fields like Name, Type, CNIVersion,
+// 	// and PrevResult.
+// 	types.NetConf
+// 	VethName      string          `json:"veth"`
+// 	Addresses     []netip.Prefix  `json:"addrs,omitempty"`
+// 	Routes        []v1beta1.Route `json:"routes,omitempty"`
+// 	EnableDad     bool            `json:"enableDad"`
+// 	TxChecksumOff bool            `json:"disableTxChecksum"`
+// 	PeerNS        string          `json:"peerNS"`
+// }
 
 // MacEnvArgs represents CNI_ARGS
 type MacEnvArgs struct {
@@ -60,8 +62,8 @@ type BridgeArgs struct {
 }
 
 // parseConfig parses the supplied configuration (and prevResult) from stdin.
-func parseConfig(stdin []byte, envArgs string) (*PluginConf, error) {
-	conf := PluginConf{}
+func parseConfig(stdin []byte, envArgs string) (*v1beta1.K8sLANVethPluginConf, error) {
+	conf := v1beta1.K8sLANVethPluginConf{}
 
 	if err := json.Unmarshal(stdin, &conf); err != nil {
 		return nil, fmt.Errorf("failed to parse network configuration: %v", err)
@@ -75,7 +77,28 @@ func parseConfig(stdin []byte, envArgs string) (*PluginConf, error) {
 		return nil, fmt.Errorf("could not parse prevResult: %v", err)
 	}
 	// End previous result parsing
-
+	for i, addr := range conf.Addresses {
+		if !addr.IsValid() {
+			return nil, fmt.Errorf("#%d is invalid ip prefix", i+1)
+		}
+		if _, err := netlink.ParseAddr(addr.String()); err != nil {
+			return nil, fmt.Errorf("#%d is not a valid ip prefix", i+1)
+		}
+	}
+	if len(conf.Routes) > 0 && len(conf.Addresses) == 0 {
+		return nil, fmt.Errorf("routes can't be specified without interface address")
+	}
+	for i, r := range conf.Routes {
+		if !r.To.IsValid() {
+			return nil, fmt.Errorf("route #%d has invalid dest", i+1)
+		}
+		if !r.Via.IsValid() {
+			return nil, fmt.Errorf("route #%d has invalid nexthop", i+1)
+		}
+		if r.Via.Is4() != r.To.Addr().Is4() {
+			return nil, fmt.Errorf("route #%d has inconsistent address family", i+1)
+		}
+	}
 	return &conf, nil
 }
 
@@ -94,7 +117,6 @@ func turnOffIPTxChecksum(ifname string) error {
 
 // cmdAdd is called for ADD requests
 func cmdAdd(args *skel.CmdArgs) error {
-	success := false
 	conf, err := parseConfig(args.StdinData, args.Args)
 	if err != nil {
 		return err
@@ -149,6 +171,55 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return fmt.Errorf("failed to rename veth interface from %v -> %v, %w", conf.VethName, args.IfName, err)
 	}
 
+	//assign address
+
+	err = podNS.Do(func(_ ns.NetNS) error {
+		vlink, err = netlink.LinkByName(args.IfName)
+		if err != nil {
+			return err
+		}
+		for _, addr := range conf.Addresses {
+			naddr, _ := netlink.ParseAddr(addr.String())
+			err = netlink.AddrReplace(vlink, naddr)
+			if err != nil {
+				return fmt.Errorf("failed to assign addr %v, %w", addr.String(), err)
+			}
+		}
+		//bring up the interface
+		return netlink.LinkSetUp(vlink)
+
+	})
+
+	if err != nil {
+		return err
+	}
+	//add routes
+
+	err = podNS.Do(func(_ ns.NetNS) error {
+		vlink, err = netlink.LinkByName(args.IfName)
+		if err != nil {
+			return err
+		}
+		for _, route := range conf.Routes {
+			nRoute := &netlink.Route{
+				LinkIndex: vlink.Attrs().Index,
+				Dst: &net.IPNet{
+					IP:   route.To.Addr().AsSlice(),
+					Mask: net.CIDRMask(route.To.Bits(), route.To.Addr().BitLen()),
+				},
+				Gw: route.Via.AsSlice(),
+			}
+			err = netlink.RouteAdd(nRoute)
+			if err != nil {
+				return fmt.Errorf("failed to add route %v, %w", nRoute.String(), err)
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
 	podIface := &current.Interface{}
 	podIface.Name = vlink.Attrs().Name
 	podIface.Mac = vlink.Attrs().HardwareAddr.String()
@@ -160,68 +231,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 		},
 	}
 
-	//IPAM
-	if conf.IPAM.Type != "" {
-		//assign IP
-		// run the IPAM plugin and get back the config to apply
-		r, err := ipam.ExecAdd(conf.IPAM.Type, args.StdinData)
-		if err != nil {
-			return err
-		}
-
-		// release IP in case of failure
-		defer func() {
-			if !success {
-				ipam.ExecDel(conf.IPAM.Type, args.StdinData)
-			}
-		}()
-
-		// Convert whatever the IPAM result was into the current Result type
-		ipamResult, err := current.NewResultFromResult(r)
-		if err != nil {
-			return err
-		}
-
-		result.IPs = ipamResult.IPs
-		result.Routes = ipamResult.Routes
-		result.DNS = ipamResult.DNS
-
-		if len(result.IPs) == 0 {
-			return errors.New("IPAM plugin returned missing IP config")
-		}
-
-		// Configure the container hardware address and IP address(es)
-		if err := podNS.Do(func(_ ns.NetNS) error {
-			if conf.EnableDad {
-				_, _ = sysctl.Sysctl(fmt.Sprintf("/net/ipv6/conf/%s/enhanced_dad", args.IfName), "1")
-				_, _ = sysctl.Sysctl(fmt.Sprintf("net/ipv6/conf/%s/accept_dad", args.IfName), "1")
-			} else {
-				_, _ = sysctl.Sysctl(fmt.Sprintf("net/ipv6/conf/%s/accept_dad", args.IfName), "0")
-			}
-			_, _ = sysctl.Sysctl(fmt.Sprintf("net/ipv4/conf/%s/arp_notify", args.IfName), "1")
-
-			// Add the IP to the interface
-			return ipam.ConfigureIface(args.IfName, result)
-		}); err != nil {
-			return err
-		}
-	}
-	// Use incoming DNS settings if provided, otherwise use the
-	// settings that were already configured by the IPAM plugin
-	if dnsConfSet(conf.DNS) {
-		result.DNS = conf.DNS
-	}
-
-	success = true
 	return types.PrintResult(result, conf.CNIVersion)
-
-}
-
-func dnsConfSet(dnsConf types.DNS) bool {
-	return dnsConf.Nameservers != nil ||
-		dnsConf.Search != nil ||
-		dnsConf.Options != nil ||
-		dnsConf.Domain != ""
 }
 
 // cmdDel is called for DELETE requests
