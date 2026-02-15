@@ -19,6 +19,8 @@ require (
 	sigs.k8s.io/controller-runtime v0.22.1
 )
 
+replace github.com/kubevirt/device-plugin-manager => github.com/hujun-open/device-plugin-manager v0.0.1
+
 require (
 	cel.dev/expr v0.24.0 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
