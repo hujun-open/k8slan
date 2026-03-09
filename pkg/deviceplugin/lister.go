@@ -11,17 +11,18 @@ import (
 )
 
 type macvtapLister struct {
-	DeviceList map[string]*v1beta1.LAN //key is the res name in the LAN
-	// lock   *sync.RWMutex
-	// NetNsPath is the path to the network namespace the lister operates in.
+	DeviceList         map[string]*v1beta1.LAN //key is the res name in the LAN
+	deviceListLock     *sync.RWMutex
 	AddChan            chan v1beta1.AddRequest
 	RemovChan          chan *v1beta1.LAN
 	ExistingNSList     []string
-	ExistingNSListLock *sync.RWMutex
+	existingNSListLock *sync.RWMutex
 }
 
 func (ml *macvtapLister) getCurrentPlugins() dpm.PluginNameList {
 	r := make(dpm.PluginNameList, 0)
+	ml.deviceListLock.RLock()
+	defer ml.deviceListLock.RUnlock()
 	for name := range ml.DeviceList {
 		r = append(r, name)
 	}
@@ -33,7 +34,8 @@ func NewMacvtapLister(netNsPath string, add chan v1beta1.AddRequest, remove chan
 		AddChan:            add,
 		RemovChan:          remove,
 		DeviceList:         make(map[string]*v1beta1.LAN),
-		ExistingNSListLock: new(sync.RWMutex),
+		deviceListLock:     new(sync.RWMutex),
+		existingNSListLock: new(sync.RWMutex),
 	}
 }
 
@@ -55,22 +57,26 @@ func (ml *macvtapLister) Discover(pluginListCh chan dpm.PluginNameList) {
 
 			lan := req.NewLan
 			log.Info("got a new lan", "name", lan.Name)
-			ml.ExistingNSListLock.Lock()
+			ml.existingNSListLock.Lock()
 			ml.ExistingNSList = req.ExistingNSNames
-			ml.ExistingNSListLock.Unlock()
+			ml.existingNSListLock.Unlock()
+			ml.deviceListLock.Lock()
 			for _, spokeName := range lan.Spec.SpokeList {
 				ml.DeviceList[v1beta1.GetDPResouceName(lan.Name, spokeName, true)] = lan
 				ml.DeviceList[v1beta1.GetDPResouceName(lan.Name, spokeName, false)] = lan
 			}
+			ml.deviceListLock.Unlock()
 			ml.report(pluginListCh)
 			log.Info("report the new lan", "name", lan.Name)
 
 		case lan := <-ml.RemovChan:
 			log.Info("got a  lan to remove", "name", lan.Name)
+			ml.deviceListLock.Lock()
 			for _, spokeName := range lan.Spec.SpokeList {
 				delete(ml.DeviceList, v1beta1.GetDPResouceName(lan.Name, spokeName, true))
 				delete(ml.DeviceList, v1beta1.GetDPResouceName(lan.Name, spokeName, false))
 			}
+			ml.deviceListLock.Unlock()
 			ml.report(pluginListCh)
 			log.Info("report new dev list after removal", "name", lan.Name)
 
@@ -82,7 +88,9 @@ func (ml *macvtapLister) Discover(pluginListCh chan dpm.PluginNameList) {
 // also vlanName in k8slan case
 func (ml *macvtapLister) NewPlugin(name string) dpm.PluginInterface {
 	log := ctrl.Log.WithName("deviceplugin")
+	ml.deviceListLock.RLock()
 	lan, ok := ml.DeviceList[name]
+	ml.deviceListLock.RUnlock()
 	if !ok {
 		return nil
 	}

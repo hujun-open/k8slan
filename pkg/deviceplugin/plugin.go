@@ -1,6 +1,7 @@
 package deviceplugin
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"slices"
@@ -9,7 +10,6 @@ import (
 
 	"github.com/hujun-open/k8slan/api/v1beta1"
 	"github.com/hujun-open/k8slan/pkg/interfaces"
-	"golang.org/x/net/context"
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
@@ -84,9 +84,9 @@ func (mdp *macvtapDevicePlugin) ListAndWatch(e *pluginapi.Empty, s pluginapi.Dev
 }
 
 func (mdp *macvtapDevicePlugin) clearUnused() error {
-	mdp.lister.ExistingNSListLock.RLock()
+	mdp.lister.existingNSListLock.RLock()
 	crNSList := slices.Clone(mdp.lister.ExistingNSList)
-	mdp.lister.ExistingNSListLock.RUnlock()
+	mdp.lister.existingNSListLock.RUnlock()
 	existList, err := interfaces.GetExistingNSPaths()
 	if err != nil {
 		return fmt.Errorf("failed to list existing NS path, %w", err)
