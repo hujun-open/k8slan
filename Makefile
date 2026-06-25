@@ -130,7 +130,10 @@ docker-build: build ## Build docker image with the manager.
 
 .PHONY: docker-build-local
 docker-build-local: build
+	-rm k8slan.tar.gz
 	$(CONTAINER_TOOL) build -f Dockerfile.nogo -t ${IMG} .
+	$(CONTAINER_TOOL) save ${IMG} -o k8slan.tar
+	gzip k8slan.tar
 
 
 .PHONY: docker-push

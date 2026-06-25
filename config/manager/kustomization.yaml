@@ -4,5 +4,5 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
 - name: controller
-  newName: localhost/k8slan
-  newTag: v64
+  newName: basesvr.hj.dev:5000/k8slan
+  newTag: prom
