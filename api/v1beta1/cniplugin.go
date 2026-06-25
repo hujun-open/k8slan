@@ -31,6 +31,12 @@ func DefK8sLANVethPluginConf() *K8sLANVethPluginConf {
 // +kubebuilder:object:root=false
 type MACVTAPPluginConf struct {
 	types.NetConf
+	//following is from MACVTAP pkg/cni/plugin.go
+	DeviceID      string `json:"deviceID"`
+	MTU           int    `json:"mtu,omitempty"`
+	IsPromiscuous bool   `json:"promiscMode,omitempty"`
+	Owner         int    `json:"owner,omitempty"`
+	Group         int    `json:"group,omitempty"`
 }
 
 func GetMACVTAPPluginConf(name string) *MACVTAPPluginConf {
@@ -40,5 +46,6 @@ func GetMACVTAPPluginConf(name string) *MACVTAPPluginConf {
 			Type:       "macvtap",
 			Name:       name,
 		},
+		IsPromiscuous: true,
 	}
 }
