@@ -34,7 +34,6 @@ spec:
         volumeMounts:
           - name: cni
             mountPath: /host/opt/cni/bin
-            mountPropagation: Bidirectional
       containers:
       - command:
         - /ds

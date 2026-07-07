@@ -13,7 +13,7 @@ RUN go mod download
 
 # Copy the Go source (relies on .dockerignore to filter)
 COPY . .
-COPY --from=quay.io/kubevirt/macvtap-cni:latest /macvtap-cni .
+COPY --from=quay.io/kubevirt/macvtap-cni:v0.13.1 /macvtap-cni .
 
 # Build
 # the GOARCH has no default value to allow the binary to be built according to the host where the command
